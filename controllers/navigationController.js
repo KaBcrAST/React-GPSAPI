@@ -1,39 +1,43 @@
 const axios = require('axios');
+require('dotenv').config();
 
 const navigationController = {
   getRemainingDistance: async (req, res) => {
     const { origin, destination } = req.query;
 
     if (!origin || !destination) {
-      return res.status(400).json({ error: 'Origin and destination are required' });
+      return res.status(400).json({ 
+        error: 'Origin and destination coordinates are required' 
+      });
     }
 
     try {
       const response = await axios.get(
-        `https://maps.googleapis.com/maps/api/directions/json`,
+        'https://maps.googleapis.com/maps/api/directions/json',
         {
           params: {
-            origin: origin,
-            destination: destination,
+            origin,
+            destination,
             key: process.env.GOOGLE_MAPS_API_KEY
           }
         }
       );
 
-      if (response.data.routes[0]?.legs[0]?.distance) {
-        const distance = response.data.routes[0].legs[0].distance;
-        res.json({
-          distance: {
-            value: distance.value,
-            text: distance.text
-          }
-        });
-      } else {
-        res.status(404).json({ error: 'No route found' });
+      const route = response.data.routes[0];
+      if (!route?.legs?.[0]?.distance) {
+        return res.status(404).json({ error: 'No route found' });
       }
+
+      const { distance } = route.legs[0];
+      res.json({
+        distance: {
+          value: distance.value,
+          text: distance.text
+        }
+      });
     } catch (error) {
-      console.error('Navigation error:', error);
-      res.status(500).json({ error: 'Failed to fetch route information' });
+      console.error('Navigation error:', error.response?.data || error.message);
+      res.status(500).json({ error: 'Failed to calculate distance' });
     }
   }
 };
