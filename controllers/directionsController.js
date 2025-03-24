@@ -1,36 +1,19 @@
-const axios = require('axios');
+const { getDirections } = require('../model/directionsModel');
 
-exports.getDirections = async (req, res) => {
-    const { origin, destination } = req.query;
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+const fetchDirections = async (req, res) => {
+  const { startAddress, endAddress, avoidTolls } = req.body;
 
-    if (!origin || !destination) {
-        return res.status(400).json({ error: 'Missing required parameters: origin, destination' });
-    }
+  if (!startAddress || !endAddress) {
+    return res.status(400).json({ error: 'Les adresses de départ et d\'arrivée sont requises.' });
+  }
 
-    try {
-        const response = await axios.get('https://maps.googleapis.com/maps/api/directions/json', {
-            params: {
-                key: apiKey,
-                origin,
-                destination,
-                mode: 'driving',
-                departure_time: 'now', // Requis pour les données en temps réel
-                traffic_model: 'best_guess' // Options : best_guess, pessimistic, optimistic
-            }
-        });
-
-        const routes = response.data.routes;
-        if (routes.length > 0) {
-            const bounds = routes[0].bounds;
-            if (!bounds || !bounds.northeast || !bounds.southwest) {
-                console.error('Invalid bounds in response:', bounds);
-            }
-        }
-
-        res.json(response.data);
-    } catch (error) {
-        console.error('Error fetching directions:', error.message);
-        res.status(500).json({ error: 'Failed to fetch directions' });
-    }
+  try {
+    const directions = await getDirections(startAddress, endAddress, avoidTolls);
+    res.json(directions);
+  } catch (error) {
+    console.error('Error fetching directions:', error);
+    res.status(500).json({ error: error.message });
+  }
 };
+
+module.exports = { fetchDirections };

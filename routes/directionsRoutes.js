@@ -1,7 +1,7 @@
 const express = require('express');
+const { fetchDirections } = require('../controllers/directionsController');
 const router = express.Router();
-const directionsController = require('../controllers/directionsController');
 
-router.get('/get-directions', directionsController.getDirections);
+router.post('/directions', fetchDirections);
 
 module.exports = router;

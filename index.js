@@ -6,12 +6,17 @@ const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
 const gpsRoutes = require('./routes/gpsRoutes');
 const { isAuthenticated } = require('./middlewares/middlewares');
+const directionsRoutes = require('./routes/directionsRoutes');
+const { generateQRCode } = require('./controllers/qrController');
+const qrCodeRoutes = require('./routes/qrRoutes');
+const mapRoutes = require('./routes/mapRoutes');
+const searchRoutes = require('./routes/searchRoutes');
 
 const app = express();
 
 // Configurez CORS pour autoriser les requêtes de votre front-end
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: '*',
   credentials: true
 }));
 
@@ -23,6 +28,11 @@ app.use(express.json()); // Pour parser les requêtes JSON
 
 app.use('/auth', authRoutes);
 app.use('/api/gps', gpsRoutes);
+app.use('/api', directionsRoutes);
+app.use('/api', qrCodeRoutes);
+app.use('/api/map', mapRoutes);
+app.use('/api/search', searchRoutes);
+console.log('Map routes registered');
 
 app.get('/', (req, res) => {
   res.send('<a href="/auth/google">Authenticate with Google</a>');
@@ -32,4 +42,9 @@ app.get('/protected', isAuthenticated, (req, res) => {
   res.send('This is a protected route');
 });
 
-app.listen(5000, () => console.log('listening on port: 5000'));
+app.listen(5000, () => {
+  console.log('Server listening on port: 5000');
+  console.log('Available routes:');
+  console.log('- GET /api/map/config');
+  console.log('- POST /api/map/location');
+});
