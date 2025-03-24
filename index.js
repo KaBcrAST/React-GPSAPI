@@ -11,6 +11,7 @@ const { generateQRCode } = require('./controllers/qrController');
 const qrCodeRoutes = require('./routes/qrRoutes');
 const mapRoutes = require('./routes/mapRoutes');
 const searchRoutes = require('./routes/searchRoutes');
+const speedLimitRoutes = require('./routes/speedLimitRoutes');
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api', directionsRoutes);
 app.use('/api', qrCodeRoutes);
 app.use('/api/map', mapRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api', speedLimitRoutes);
 console.log('Map routes registered');
 
 app.get('/', (req, res) => {
