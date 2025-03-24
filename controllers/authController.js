@@ -110,7 +110,7 @@ const authController = {
     // Générer un token JWT
     const token = jwt.sign({ name: req.user.displayName, email: req.user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
     // Rediriger vers la page d'accueil avec le token dans les query params
-    res.redirect(`https://react-gpsapi.vercel.app/oauth-redirect?token=${token}`);
+    res.redirect(`http://localhost:3000/oauth-redirect?token=${token}`);
   },
 
   authFailure: (req, res) => {
@@ -119,7 +119,8 @@ const authController = {
 
   logout: (req, res) => {
     req.logout();
-    res.redirect('/');
+    req.session.destroy();
+    res.send('Goodbye!');
   },
 
   verifyEmail: async (req, res) => {
