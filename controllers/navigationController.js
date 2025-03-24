@@ -12,6 +12,8 @@ const navigationController = {
     }
 
     try {
+      console.log('Calculating distance:', { origin, destination });
+
       const response = await axios.get(
         'https://maps.googleapis.com/maps/api/directions/json',
         {
@@ -23,18 +25,15 @@ const navigationController = {
         }
       );
 
-      const route = response.data.routes[0];
-      if (!route?.legs?.[0]?.distance) {
+      if (!response.data.routes?.[0]?.legs?.[0]?.distance) {
+        console.error('No route found:', response.data);
         return res.status(404).json({ error: 'No route found' });
       }
 
-      const { distance } = route.legs[0];
-      res.json({
-        distance: {
-          value: distance.value,
-          text: distance.text
-        }
-      });
+      const distance = response.data.routes[0].legs[0].distance;
+      console.log('Distance calculated:', distance);
+
+      res.json({ distance });
     } catch (error) {
       console.error('Navigation error:', error.response?.data || error.message);
       res.status(500).json({ error: 'Failed to calculate distance' });
