@@ -11,6 +11,8 @@ const { generateQRCode } = require('./controllers/qrController');
 const qrCodeRoutes = require('./routes/qrRoutes');
 const mapRoutes = require('./routes/mapRoutes');
 const searchRoutes = require('./routes/searchRoutes');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
 
 const app = express();
 
@@ -33,6 +35,9 @@ app.use('/api', qrCodeRoutes);
 app.use('/api/map', mapRoutes);
 app.use('/api/search', searchRoutes);
 console.log('Map routes registered');
+
+// Swagger documentation route
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.get('/', (req, res) => {
   res.send('<a href="/auth/google">Authenticate with Google</a>');
