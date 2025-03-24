@@ -7,7 +7,7 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 passport.use(new GoogleStrategy({
   clientID: GOOGLE_CLIENT_ID,
   clientSecret: GOOGLE_CLIENT_SECRET,
-  callbackURL: 'http://localhost:5000/auth/google/callback',
+  callbackURL: 'https://react-gpsapi.vercel.app/auth/google/callback',
   passReqToCallback: true,
 },
 function(request, accessToken, refreshToken, profile, done) {
