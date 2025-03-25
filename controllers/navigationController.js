@@ -74,6 +74,66 @@ const navigationController = {
       console.error('Navigation error:', error.response?.data || error.message);
       res.status(500).json({ error: 'Failed to calculate route info' });
     }
+  },
+
+  getRoute: async (req, res) => {
+    const { origin, destination, avoid } = req.query;
+
+    if (!origin || !destination) {
+      return res.status(400).json({ 
+        error: 'Origin and destination coordinates are required' 
+      });
+    }
+
+    try {
+      console.log('Calculating route:', { origin, destination, avoid });
+
+      const params = {
+        origin,
+        destination,
+        alternatives: true,
+        key: process.env.GOOGLE_MAPS_API_KEY
+      };
+
+      if (avoid === 'tolls') {
+        params.avoid = 'tolls';
+      }
+
+      const response = await axios.get(
+        'https://maps.googleapis.com/maps/api/directions/json',
+        { params }
+      );
+
+      if (!response.data.routes || response.data.status !== 'OK') {
+        console.error('No routes found:', response.data);
+        return res.status(404).json({ error: 'No routes found' });
+      }
+
+      const routes = response.data.routes.map(route => ({
+        bounds: route.bounds,
+        distance: route.legs[0].distance,
+        duration: route.legs[0].duration,
+        steps: route.legs[0].steps,
+        overview_polyline: route.overview_polyline,
+        summary: route.summary,
+        warnings: route.warnings,
+        waypoint_order: route.waypoint_order,
+        fare: route.fare,
+        hasTolls: route.warnings?.some(warning => 
+          warning.toLowerCase().includes('toll')
+        )
+      }));
+
+      console.log(`Found ${routes.length} routes`);
+      res.json({ status: 'OK', routes });
+
+    } catch (error) {
+      console.error('Navigation error:', error.response?.data || error.message);
+      res.status(500).json({ 
+        status: 'ERROR',
+        error: 'Failed to calculate routes'
+      });
+    }
   }
 };
 
