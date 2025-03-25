@@ -50,6 +50,8 @@ const navigationController = {
     }
 
     try {
+      console.log('Getting route info:', { origin, destination });
+      
       const response = await axios.get(
         'https://maps.googleapis.com/maps/api/directions/json',
         {
@@ -61,15 +63,18 @@ const navigationController = {
         }
       );
 
-      const leg = response.data.routes?.[0]?.legs?.[0];
-      if (!leg) {
+      if (!response.data.routes?.[0]?.legs?.[0]) {
+        console.error('No route found in Google response');
         return res.status(404).json({ error: 'No route found' });
       }
 
-      res.json({
-        distance: leg.distance,
-        duration: leg.duration
-      });
+      const routeInfo = {
+        distance: response.data.routes[0].legs[0].distance,
+        duration: response.data.routes[0].legs[0].duration
+      };
+
+      console.log('Route info found:', routeInfo);
+      res.json(routeInfo);
     } catch (error) {
       console.error('Navigation error:', error.response?.data || error.message);
       res.status(500).json({ error: 'Failed to calculate route info' });
