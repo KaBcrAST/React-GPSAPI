@@ -76,6 +76,52 @@ const reportController = {
       console.error('Error upvoting report:', error);
       res.status(500).json({ error: 'Failed to upvote report' });
     }
+  },
+
+  getReportClusters: async (req, res) => {
+    try {
+      const { bounds, minReports = 5 } = req.query;
+      
+      // Parse map bounds
+      const boundingBox = JSON.parse(bounds);
+      
+      const clusters = await Report.aggregate([
+        {
+          $match: {
+            location: {
+              $geoWithin: {
+                $box: [
+                  [boundingBox.sw.lng, boundingBox.sw.lat],
+                  [boundingBox.ne.lng, boundingBox.ne.lat]
+                ]
+              }
+            }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              type: "$type",
+              location: {
+                $geometryToJSON: "$location"
+              }
+            },
+            count: { $sum: 1 },
+            reports: { $push: "$$ROOT" }
+          }
+        },
+        {
+          $match: {
+            count: { $gte: minReports }
+          }
+        }
+      ]);
+
+      res.json(clusters);
+    } catch (error) {
+      console.error('Error fetching clusters:', error);
+      res.status(500).json({ error: 'Failed to fetch report clusters' });
+    }
   }
 };
 
