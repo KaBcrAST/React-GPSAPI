@@ -13,6 +13,8 @@ const mapRoutes = require('./routes/mapRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const speedLimitRoutes = require('./routes/speedLimitRoutes');
 const navigationRoutes = require('./routes/navigationRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+
 
 const app = express();
 
@@ -36,6 +38,8 @@ app.use('/api/map', mapRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api', speedLimitRoutes);
 app.use('/api', navigationRoutes);
+app.use('/api', reportRoutes);
+
 console.log('Map routes registered');
 
 app.get('/', (req, res) => {
