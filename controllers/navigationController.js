@@ -93,25 +93,19 @@ const navigationController = {
     try {
       console.log('🚗 Calculating route:', { origin, destination, avoid });
 
+      // Simplified params - only use what Google Maps API actually supports
       const params = {
         origin,
         destination,
         alternatives: true,
         mode: 'driving',
-        // Request maximum detail level
-        optimize: true,
-        // Get all waypoints for better accuracy
-        generate_alternative_routes: true,
-        // Get detailed steps including roundabouts
-        maneuvers: true,
-        // Get highest resolution path
-        interpolate: true,
-        // Get traffic signals and road features
-        traffic_model: 'best_guess',
+        language: 'fr',
+        region: 'fr',
         units: 'metric',
         key: process.env.GOOGLE_MAPS_API_KEY
       };
 
+      // Add avoid parameter if specified
       if (avoid) {
         params.avoid = avoid;
       }
@@ -131,52 +125,29 @@ const navigationController = {
 
       // Process routes with enhanced detail
       const routes = response.data.routes.map(route => {
-        // Get all steps and sub-steps for maximum detail
+        // Extract detailed steps from each leg
         const details = route.legs.flatMap(leg => 
-          leg.steps.flatMap(step => {
-            // Get sub-steps if available (like roundabout exits)
-            const subSteps = step.steps || [];
-            
-            // Combine main step and sub-steps
-            return [
-              {
-                polyline: step.polyline.points,
-                distance: step.distance,
-                duration: step.duration,
-                instructions: step.html_instructions,
-                maneuver: step.maneuver || null,
-                isRoundabout: step.maneuver?.includes('roundabout'),
-              },
-              ...subSteps.map(subStep => ({
-                polyline: subStep.polyline.points,
-                distance: subStep.distance,
-                duration: subStep.duration,
-                instructions: subStep.html_instructions,
-                maneuver: subStep.maneuver || null,
-                isRoundabout: subStep.maneuver?.includes('roundabout'),
-              }))
-            ];
-          })
+          leg.steps.map(step => ({
+            polyline: step.polyline.points,
+            distance: step.distance,
+            duration: step.duration,
+            instructions: step.html_instructions,
+            maneuver: step.maneuver || null
+          }))
         );
-
-        // Combine all polylines for a more detailed path
-        const combinedPolyline = details.map(d => d.polyline).join('');
 
         return {
           summary: route.summary,
           bounds: route.bounds,
           distance: route.legs[0].distance,
           duration: route.legs[0].duration,
-          overview_polyline: {
-            points: combinedPolyline
-          },
+          polyline: route.overview_polyline.points,
           details,
-          hasTolls: route.warnings?.some(w => w.toLowerCase().includes('toll')) || false,
-          warnings: route.warnings || []
+          hasTolls: route.warnings?.some(w => w.toLowerCase().includes('toll')) || false
         };
       });
 
-      console.log(`✅ Found ${routes.length} routes with enhanced detail`);
+      console.log(`✅ Found ${routes.length} routes`);
       
       res.json({ 
         status: 'OK',
@@ -184,8 +155,14 @@ const navigationController = {
       });
 
     } catch (error) {
-      console.error('❌ Navigation error:', error);
-      res.status(500).json({ error: 'Failed to calculate route' });
+      console.error('❌ Navigation error:', {
+        message: error.message,
+        response: error.response?.data
+      });
+      res.status(500).json({ 
+        error: 'Failed to calculate route',
+        details: error.response?.data?.error_message || error.message
+      });
     }
   }
 };
