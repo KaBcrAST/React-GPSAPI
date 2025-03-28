@@ -98,17 +98,22 @@ const navigationController = {
         destination,
         alternatives: true,
         mode: 'driving',
-        // Demander une meilleure résolution du trajet
+        // Request maximum detail level
         optimize: true,
-        // Augmenter le nombre de points pour un meilleur tracé
-        waypoints_per_route: true,
+        // Get all waypoints for better accuracy
+        generate_alternative_routes: true,
+        // Get detailed steps including roundabouts
+        maneuvers: true,
+        // Get highest resolution path
+        interpolate: true,
+        // Get traffic signals and road features
+        traffic_model: 'best_guess',
         units: 'metric',
         key: process.env.GOOGLE_MAPS_API_KEY
       };
 
-      // Ajouter les préférences d'évitement
       if (avoid) {
-        params.avoid = avoid; // 'tolls', 'highways', 'ferries'
+        params.avoid = avoid;
       }
 
       const response = await axios.get(
@@ -124,34 +129,54 @@ const navigationController = {
         });
       }
 
-      // Traiter les routes pour avoir plus de détails
+      // Process routes with enhanced detail
       const routes = response.data.routes.map(route => {
-        // Extraire tous les points du trajet, pas seulement overview
+        // Get all steps and sub-steps for maximum detail
         const details = route.legs.flatMap(leg => 
-          leg.steps.map(step => ({
-            polyline: step.polyline.points,
-            distance: step.distance,
-            duration: step.duration,
-            instructions: step.html_instructions
-          }))
+          leg.steps.flatMap(step => {
+            // Get sub-steps if available (like roundabout exits)
+            const subSteps = step.steps || [];
+            
+            // Combine main step and sub-steps
+            return [
+              {
+                polyline: step.polyline.points,
+                distance: step.distance,
+                duration: step.duration,
+                instructions: step.html_instructions,
+                maneuver: step.maneuver || null,
+                isRoundabout: step.maneuver?.includes('roundabout'),
+              },
+              ...subSteps.map(subStep => ({
+                polyline: subStep.polyline.points,
+                distance: subStep.distance,
+                duration: subStep.duration,
+                instructions: subStep.html_instructions,
+                maneuver: subStep.maneuver || null,
+                isRoundabout: subStep.maneuver?.includes('roundabout'),
+              }))
+            ];
+          })
         );
+
+        // Combine all polylines for a more detailed path
+        const combinedPolyline = details.map(d => d.polyline).join('');
 
         return {
           summary: route.summary,
           bounds: route.bounds,
           distance: route.legs[0].distance,
           duration: route.legs[0].duration,
-          // Garder le polyline d'aperçu pour l'affichage initial
-          overview_polyline: route.overview_polyline,
-          // Ajouter les détails pour un meilleur rendu
+          overview_polyline: {
+            points: combinedPolyline
+          },
           details,
-          hasTolls: route.warnings?.some(w => 
-            w.toLowerCase().includes('toll')
-          ) || false
+          hasTolls: route.warnings?.some(w => w.toLowerCase().includes('toll')) || false,
+          warnings: route.warnings || []
         };
       });
 
-      console.log(`✅ Found ${routes.length} routes`);
+      console.log(`✅ Found ${routes.length} routes with enhanced detail`);
       
       res.json({ 
         status: 'OK',
