@@ -91,17 +91,24 @@ const navigationController = {
     }
 
     try {
-      console.log('Calculating route:', { origin, destination, avoid });
+      console.log('🚗 Calculating route:', { origin, destination, avoid });
 
       const params = {
         origin,
         destination,
         alternatives: true,
+        mode: 'driving',
+        // Demander une meilleure résolution du trajet
+        optimize: true,
+        // Augmenter le nombre de points pour un meilleur tracé
+        waypoints_per_route: true,
+        units: 'metric',
         key: process.env.GOOGLE_MAPS_API_KEY
       };
 
-      if (avoid === 'tolls') {
-        params.avoid = 'tolls';
+      // Ajouter les préférences d'évitement
+      if (avoid) {
+        params.avoid = avoid; // 'tolls', 'highways', 'ferries'
       }
 
       const response = await axios.get(
@@ -110,34 +117,50 @@ const navigationController = {
       );
 
       if (!response.data.routes || response.data.status !== 'OK') {
-        console.error('No routes found:', response.data);
-        return res.status(404).json({ error: 'No routes found' });
+        console.error('❌ No routes found:', response.data);
+        return res.status(404).json({ 
+          error: 'No routes found',
+          googleStatus: response.data.status
+        });
       }
 
-      const routes = response.data.routes.map(route => ({
-        bounds: route.bounds,
-        distance: route.legs[0].distance,
-        duration: route.legs[0].duration,
-        steps: route.legs[0].steps,
-        overview_polyline: route.overview_polyline,
-        summary: route.summary,
-        warnings: route.warnings,
-        waypoint_order: route.waypoint_order,
-        fare: route.fare,
-        hasTolls: route.warnings?.some(warning => 
-          warning.toLowerCase().includes('toll')
-        )
-      }));
+      // Traiter les routes pour avoir plus de détails
+      const routes = response.data.routes.map(route => {
+        // Extraire tous les points du trajet, pas seulement overview
+        const details = route.legs.flatMap(leg => 
+          leg.steps.map(step => ({
+            polyline: step.polyline.points,
+            distance: step.distance,
+            duration: step.duration,
+            instructions: step.html_instructions
+          }))
+        );
 
-      console.log(`Found ${routes.length} routes`);
-      res.json({ status: 'OK', routes });
+        return {
+          summary: route.summary,
+          bounds: route.bounds,
+          distance: route.legs[0].distance,
+          duration: route.legs[0].duration,
+          // Garder le polyline d'aperçu pour l'affichage initial
+          overview_polyline: route.overview_polyline,
+          // Ajouter les détails pour un meilleur rendu
+          details,
+          hasTolls: route.warnings?.some(w => 
+            w.toLowerCase().includes('toll')
+          ) || false
+        };
+      });
+
+      console.log(`✅ Found ${routes.length} routes`);
+      
+      res.json({ 
+        status: 'OK',
+        routes
+      });
 
     } catch (error) {
-      console.error('Navigation error:', error.response?.data || error.message);
-      res.status(500).json({ 
-        status: 'ERROR',
-        error: 'Failed to calculate routes'
-      });
+      console.error('❌ Navigation error:', error);
+      res.status(500).json({ error: 'Failed to calculate route' });
     }
   }
 };
