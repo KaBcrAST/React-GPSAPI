@@ -26,9 +26,11 @@ const reportSchema = new mongoose.Schema({
     type: Number,
     default: 0
   }
+}, {
+  collection: 'reports' // Explicitly set collection name
 });
 
+// Add geospatial index
 reportSchema.index({ location: '2dsphere' });
-reportSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7200 });
 
 module.exports = mongoose.model('Report', reportSchema);

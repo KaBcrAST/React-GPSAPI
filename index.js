@@ -14,9 +14,12 @@ const searchRoutes = require('./routes/searchRoutes');
 const speedLimitRoutes = require('./routes/speedLimitRoutes');
 const navigationRoutes = require('./routes/navigationRoutes');
 const reportRoutes = require('./routes/reportRoutes');
-
+const connectDB = require('./config/database');
 
 const app = express();
+
+// Connect to MongoDB
+connectDB();
 
 // Configurez CORS pour autoriser les requêtes de votre front-end
 app.use(cors({
@@ -50,8 +53,15 @@ app.get('/protected', isAuthenticated, (req, res) => {
   res.send('This is a protected route');
 });
 
-app.listen(5000, () => {
-  console.log('Server listening on port: 5000');
+// Error handling
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something broke!' });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log('Available routes:');
   console.log('- GET /api/map/config');
   console.log('- POST /api/map/location');
