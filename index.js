@@ -31,18 +31,44 @@ app.use(session({ secret: 'cats', resave: false, saveUninitialized: true }));
 app.use(passport.initialize());
 app.use(passport.session());
 
-app.use(express.json()); // Pour parser les requêtes JSON
+app.use(express.json({ 
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 
-// Augmenter la limite de payload
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: '10mb' 
+}));
 
-// Ajouter un timeout middleware
+// Add request logging middleware
 app.use((req, res, next) => {
-  res.setTimeout(parseInt(process.env.FUNCTION_TIMEOUT) || 10000, () => {
-    console.error('Request timeout');
-    res.status(408).json({ error: 'Request timeout' });
+  console.log(`📝 ${req.method} ${req.path}`, {
+    body: req.body,
+    query: req.query,
+    params: req.params
   });
+  next();
+});
+
+// Update timeout middleware with better error handling
+app.use((req, res, next) => {
+  const timeout = parseInt(process.env.FUNCTION_TIMEOUT) || 30000; // Increase to 30s
+  
+  const timeoutHandler = setTimeout(() => {
+    console.error(`⏰ Request timeout for ${req.method} ${req.path}`);
+    res.status(408).json({ 
+      error: 'Request timeout',
+      path: req.path,
+      method: req.method
+    });
+  }, timeout);
+
+  res.on('finish', () => clearTimeout(timeoutHandler));
+  res.on('close', () => clearTimeout(timeoutHandler));
+  
   next();
 });
 
@@ -66,31 +92,57 @@ app.get('/protected', isAuthenticated, (req, res) => {
   res.send('This is a protected route');
 });
 
-// Error handling
+// Update error handling middleware
 app.use((err, req, res, next) => {
   console.error('❌ Error:', {
+    path: req.path,
+    method: req.method,
     message: err.message,
-    stack: err.stack,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     code: err.code
   });
 
-  if (err.name === 'MongoTimeoutError') {
-    return res.status(504).json({ 
-      error: 'Database timeout',
-      details: 'The operation timed out' 
-    });
-  }
-
-  if (err.code === 'ETIMEDOUT') {
-    return res.status(504).json({ 
-      error: 'Connection timeout',
-      details: 'The request timed out' 
-    });
+  // Handle specific error types
+  switch (err.name) {
+    case 'MongoTimeoutError':
+      return res.status(504).json({
+        error: 'Database timeout',
+        details: 'The database operation timed out',
+        path: req.path
+      });
+    
+    case 'ValidationError':
+      return res.status(400).json({
+        error: 'Validation error',
+        details: err.message,
+        path: req.path
+      });
+      
+    case 'MongoError':
+      if (err.code === 11000) {
+        return res.status(409).json({
+          error: 'Duplicate entry',
+          details: 'This record already exists',
+          path: req.path
+        });
+      }
+      break;
+      
+    default:
+      if (err.code === 'ETIMEDOUT') {
+        return res.status(504).json({
+          error: 'Connection timeout',
+          details: 'The request timed out',
+          path: req.path
+        });
+      }
   }
 
   res.status(err.status || 500).json({
     error: 'Server error',
-    details: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    details: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
+    path: req.path,
+    requestId: `req_${Date.now()}`
   });
 });
 
