@@ -30,7 +30,7 @@ const reportController = {
 
   getNearbyReports: async (req, res) => {
     try {
-      const { latitude, longitude, maxDistance = 5000 } = req.query; // maxDistance in meters
+      const { latitude, longitude, maxDistance = 5000 } = req.query;
 
       if (!latitude || !longitude) {
         return res.status(400).json({ 
@@ -38,17 +38,58 @@ const reportController = {
         });
       }
 
-      const reports = await Report.find({
-        location: {
-          $near: {
-            $geometry: {
-              type: 'Point',
+      // Agrégation pour grouper les reports proches
+      const reports = await Report.aggregate([
+        {
+          $geoNear: {
+            near: {
+              type: "Point",
               coordinates: [parseFloat(longitude), parseFloat(latitude)]
             },
-            $maxDistance: parseInt(maxDistance)
+            distanceField: "distance",
+            maxDistance: parseInt(maxDistance),
+            spherical: true
+          }
+        },
+        {
+          $group: {
+            _id: {
+              type: "$type",
+              location: {
+                $concat: [
+                  { $substr: [{ $arrayElemAt: ["$location.coordinates", 1] }, 0, 6] },
+                  ",",
+                  { $substr: [{ $arrayElemAt: ["$location.coordinates", 0] }, 0, 6] }
+                ]
+              }
+            },
+            count: { $sum: 1 },
+            reports: { $push: "$$ROOT" },
+            lastReport: { $last: "$$ROOT" },
+            coordinates: { $first: "$location.coordinates" }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            type: "$_id.type",
+            count: 1,
+            isCluster: { $gte: ["$count", 10] },
+            location: {
+              type: "Point",
+              coordinates: "$coordinates"
+            },
+            reports: {
+              $cond: {
+                if: { $gte: ["$count", 10] },
+                then: "$reports",
+                else: "$$REMOVE"
+              }
+            },
+            lastReportTime: "$lastReport.createdAt"
           }
         }
-      });
+      ]);
 
       res.json(reports);
     } catch (error) {
