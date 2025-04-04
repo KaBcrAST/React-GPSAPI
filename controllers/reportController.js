@@ -38,8 +38,19 @@ const reportController = {
         });
       }
 
+      // Supprimer les reports plus vieux que 10 minutes
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      await Report.deleteMany({
+        createdAt: { $lt: tenMinutesAgo }
+      });
+
       // Agrégation pour grouper les reports proches
       const reports = await Report.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: tenMinutesAgo }
+          }
+        },
         {
           $geoNear: {
             near: {
@@ -163,7 +174,23 @@ const reportController = {
       console.error('Error fetching clusters:', error);
       res.status(500).json({ error: 'Failed to fetch report clusters' });
     }
+  },
+
+  // Optionnel: Ajouter une tâche planifiée pour nettoyer régulièrement
+  cleanupOldReports: async () => {
+    try {
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const result = await Report.deleteMany({
+        createdAt: { $lt: tenMinutesAgo }
+      });
+      console.log(`Cleaned up ${result.deletedCount} old reports`);
+    } catch (error) {
+      console.error('Cleanup error:', error);
+    }
   }
 };
+
+// Nettoyer les vieux reports toutes les minutes
+setInterval(reportController.cleanupOldReports, 60 * 1000);
 
 module.exports = reportController;

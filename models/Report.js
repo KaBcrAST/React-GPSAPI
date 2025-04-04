@@ -20,7 +20,7 @@ const reportSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    expires: 7200 // Reports expire after 2 hours
+    expires: 600 // 10 minutes en secondes
   },
   upvotes: {
     type: Number,
@@ -33,4 +33,5 @@ const reportSchema = new mongoose.Schema({
 // Add geospatial index
 reportSchema.index({ location: '2dsphere' });
 
-module.exports = mongoose.model('Report', reportSchema);
+const Report = mongoose.model('Report', reportSchema);
+module.exports = Report;
