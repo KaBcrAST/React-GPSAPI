@@ -38,28 +38,36 @@ const reportController = {
         });
       }
 
-      // Supprimer les reports plus vieux que 10 minutes
+      // Validate coordinates
+      const parsedLat = parseFloat(latitude);
+      const parsedLng = parseFloat(longitude);
+
+      if (isNaN(parsedLat) || isNaN(parsedLng)) {
+        return res.status(400).json({
+          error: 'Invalid coordinates format'
+        });
+      }
+
+      // Clean old reports
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       await Report.deleteMany({
         createdAt: { $lt: tenMinutesAgo }
-      });
+      }).catch(err => console.error('Cleanup error:', err));
 
-      // Agrégation pour grouper les reports proches
+      // Get nearby reports with better error handling
       const reports = await Report.aggregate([
-        {
-          $match: {
-            createdAt: { $gte: tenMinutesAgo }
-          }
-        },
         {
           $geoNear: {
             near: {
               type: "Point",
-              coordinates: [parseFloat(longitude), parseFloat(latitude)]
+              coordinates: [parsedLng, parsedLat]
             },
             distanceField: "distance",
             maxDistance: parseInt(maxDistance),
-            spherical: true
+            spherical: true,
+            query: {
+              createdAt: { $gte: tenMinutesAgo }
+            }
           }
         },
         {
@@ -79,33 +87,23 @@ const reportController = {
             lastReport: { $last: "$$ROOT" },
             coordinates: { $first: "$location.coordinates" }
           }
-        },
-        {
-          $project: {
-            _id: 0,
-            type: "$_id.type",
-            count: 1,
-            isCluster: { $gte: ["$count", 10] },
-            location: {
-              type: "Point",
-              coordinates: "$coordinates"
-            },
-            reports: {
-              $cond: {
-                if: { $gte: ["$count", 10] },
-                then: "$reports",
-                else: "$$REMOVE"
-              }
-            },
-            lastReportTime: "$lastReport.createdAt"
-          }
         }
-      ]);
+      ]).exec();
+
+      console.log('Reports found:', reports.length);
 
       res.json(reports);
     } catch (error) {
-      console.error('Error fetching reports:', error);
-      res.status(500).json({ error: 'Failed to fetch reports' });
+      console.error('Detailed error:', {
+        message: error.message,
+        stack: error.stack,
+        code: error.code
+      });
+      
+      res.status(500).json({ 
+        error: 'Failed to fetch reports',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
 
