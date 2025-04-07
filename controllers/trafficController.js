@@ -64,6 +64,12 @@ const trafficController = {
 
       console.log(`Found ${reports.length} traffic reports near route`);
 
+      console.log('Calling traffic service with:', {
+        origin: { latitude: originLat, longitude: originLon },
+        destination: { latitude: destLat, longitude: destLon },
+        reportsCount: reports.length
+      });
+
       const routeWithTraffic = await trafficService.getRouteTraffic(
         { latitude: originLat, longitude: originLon },
         { latitude: destLat, longitude: destLon },
@@ -71,8 +77,10 @@ const trafficController = {
       );
 
       if (!routeWithTraffic) {
+        console.error('No route data returned from traffic service');
         return res.status(404).json({
-          error: 'Could not calculate route'
+          error: 'Could not calculate route',
+          details: 'No route data available'
         });
       }
 
@@ -82,10 +90,13 @@ const trafficController = {
         timestamp: new Date()
       });
     } catch (error) {
-      console.error('Route traffic error:', {
+      console.error('Detailed route traffic error:', {
         message: error.message,
-        stack: error.stack
+        stack: error.stack,
+        origin,
+        destination
       });
+      
       res.status(500).json({
         error: 'Failed to get route traffic information',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
