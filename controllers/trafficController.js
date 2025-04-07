@@ -1,6 +1,9 @@
 const axios = require('axios');
+const Report = require('../models/Report');
+const trafficService = require('../services/trafficService');
 
-exports.getTrafficStatus = async (req, res) => {
+const trafficController = {
+  getTrafficStatus: async (req, res) => {
     const { origin, destination } = req.query;
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -39,4 +42,56 @@ exports.getTrafficStatus = async (req, res) => {
         console.error('Error fetching traffic status from Google:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to fetch traffic status' });
     }
+  },
+
+  getRouteWithTraffic: async (req, res) => {
+    try {
+      const { origin, destination } = req.query;
+
+      if (!origin || !destination) {
+        return res.status(400).json({
+          error: 'Missing origin or destination coordinates'
+        });
+      }
+
+      // Parse coordinates
+      const [originLat, originLon] = origin.split(',').map(Number);
+      const [destLat, destLon] = destination.split(',').map(Number);
+
+      // Get reports along the route
+      const reports = await Report.aggregate([
+        {
+          $geoNear: {
+            near: {
+              type: "Point",
+              coordinates: [originLon, originLat]
+            },
+            distanceField: "distance",
+            maxDistance: 5000,
+            spherical: true,
+            query: {
+              createdAt: { $gte: new Date(Date.now() - 10 * 60 * 1000) }
+            }
+          }
+        }
+      ]);
+
+      // Get route with traffic info
+      const routeWithTraffic = await trafficService.getRouteTraffic(
+        { latitude: originLat, longitude: originLon },
+        { latitude: destLat, longitude: destLon },
+        reports
+      );
+
+      res.json(routeWithTraffic);
+    } catch (error) {
+      console.error('Route traffic error:', error);
+      res.status(500).json({
+        error: 'Failed to get route traffic information',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 };
+
+module.exports = trafficController;
