@@ -1,7 +1,5 @@
 const express = require('express');
 const trafficController = require('../controllers/trafficController');
-const reportController = require('../controllers/reportController');
-
 const router = express.Router();
 
 // Route pour obtenir l'état du trafic général
