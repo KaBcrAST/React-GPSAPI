@@ -1,83 +1,116 @@
 const axios = require('axios');
 
 class TrafficService {
-  constructor() {
-    this.baseUrl = 'https://valhalla.openstreetmap.de';
-  }
-
   async getRouteTraffic(origin, destination, reports = []) {
     try {
-      console.log('Getting route traffic for:', { origin, destination });
+      // Calculer une ligne droite entre l'origine et la destination
+      const path = this.calculateDirectPath(origin, destination);
       
-      // Récupérer l'itinéraire de base
-      const routeData = await this.getRouteData(origin, destination);
-      
-      if (!routeData || !routeData.trip) {
-        console.error('No route data received from Valhalla');
-        return null;
-      }
+      // Regrouper les reports par segments
+      const segments = this.createSegments(path, reports);
 
-      // Enrichir avec les reports de trafic
       return {
         summary: {
-          distance: routeData.trip.summary.length,
-          duration: routeData.trip.summary.time,
+          distance: this.calculateDistance(origin, destination),
+          duration: this.estimateDuration(origin, destination),
           hasTrafficIssues: reports.length > 0
         },
-        segments: this.enrichSegmentsWithReports(routeData.trip.legs[0], reports)
+        segments: segments,
+        trafficClusters: this.groupReportsByClusters(reports)
       };
     } catch (error) {
-      console.error('TrafficService error:', error);
-      throw new Error(`Traffic service error: ${error.message}`);
+      console.error('Traffic service error:', error);
+      return null;
     }
   }
 
-  async getRouteData(origin, destination) {
-    try {
-      const response = await axios.post(`${this.baseUrl}/route`, {
-        locations: [
-          { lat: origin.latitude, lon: origin.longitude },
-          { lat: destination.latitude, lon: destination.longitude }
-        ],
-        costing: "auto",
-        directions_options: {
-          units: "kilometers",
-          language: "fr-FR"
-        }
+  calculateDirectPath(origin, destination) {
+    // Créer un chemin simple en ligne droite
+    const steps = 10;
+    const path = [];
+    
+    for (let i = 0; i <= steps; i++) {
+      path.push({
+        latitude: origin.latitude + (destination.latitude - origin.latitude) * (i / steps),
+        longitude: origin.longitude + (destination.longitude - origin.longitude) * (i / steps)
       });
-      
-      return response.data;
-    } catch (error) {
-      console.error('Failed to get route data:', error);
-      throw new Error('Failed to get route data from Valhalla');
     }
+    
+    return path;
   }
 
-  enrichSegmentsWithReports(leg, reports) {
-    if (!leg || !leg.maneuvers) return [];
-
-    return leg.maneuvers.map(maneuver => {
-      const nearbyReports = this.findNearbyReports(
-        maneuver.begin_shape_index,
-        reports
+  createSegments(path, reports) {
+    return path.slice(0, -1).map((start, index) => {
+      const end = path[index + 1];
+      const nearbyReports = reports.filter(report => 
+        this.isReportNearSegment(report, start, end)
       );
 
       return {
-        instruction: maneuver.instruction,
-        distance: maneuver.length,
-        duration: maneuver.time,
+        start,
+        end,
+        distance: this.calculateDistance(start, end),
         reports: nearbyReports,
-        hasTrafficIssue: nearbyReports.length > 0
+        hasTrafficIssue: nearbyReports.length >= 10
       };
     });
   }
 
-  findNearbyReports(location, reports) {
-    // Simplifier pour le débogage
-    return reports.filter(report => 
-      report.type === 'TRAFFIC' && 
-      report.distance < 1000 // Reports within 1km
+  calculateDistance(point1, point2) {
+    const R = 6371e3; // Rayon de la terre en mètres
+    const φ1 = point1.latitude * Math.PI/180;
+    const φ2 = point2.latitude * Math.PI/180;
+    const Δφ = (point2.latitude - point1.latitude) * Math.PI/180;
+    const Δλ = (point2.longitude - point1.longitude) * Math.PI/180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+  }
+
+  estimateDuration(origin, destination) {
+    const distance = this.calculateDistance(origin, destination);
+    const averageSpeed = 30; // 30 km/h en ville
+    return Math.round((distance / 1000) / averageSpeed * 3600); // durée en secondes
+  }
+
+  isReportNearSegment(report, start, end) {
+    const distance = this.calculateDistance(
+      { latitude: report.location.coordinates[1], longitude: report.location.coordinates[0] },
+      start
     );
+    return distance < 1000; // 1km de rayon
+  }
+
+  groupReportsByClusters(reports) {
+    // Regrouper les reports qui sont à moins de 100m les uns des autres
+    const clusters = [];
+    
+    for (const report of reports) {
+      let added = false;
+      for (const cluster of clusters) {
+        if (this.calculateDistance(
+          { latitude: report.location.coordinates[1], longitude: report.location.coordinates[0] },
+          { latitude: cluster.center[1], longitude: cluster.center[0] }
+        ) < 100) {
+          cluster.reports.push(report);
+          added = true;
+          break;
+        }
+      }
+      
+      if (!added) {
+        clusters.push({
+          center: report.location.coordinates,
+          reports: [report]
+        });
+      }
+    }
+
+    return clusters;
   }
 }
 
