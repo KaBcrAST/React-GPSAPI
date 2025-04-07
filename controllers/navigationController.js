@@ -164,7 +164,84 @@ const navigationController = {
         details: error.response?.data?.error_message || error.message
       });
     }
+  },
+
+  getRoutePreview: async (req, res) => {
+    try {
+      const { origin, destination } = req.query;
+
+      if (!origin || !destination) {
+        return res.status(400).json({
+          error: 'Missing origin or destination coordinates'
+        });
+      }
+
+      const response = await axios.get('https://maps.googleapis.com/maps/api/directions/json', {
+        params: {
+          origin,
+          destination,
+          alternatives: true,
+          mode: 'driving',
+          key: process.env.GOOGLE_MAPS_API_KEY
+        }
+      });
+
+      if (response.data.status !== 'OK') {
+        throw new Error(`Google Maps API error: ${response.data.status}`);
+      }
+
+      const routes = response.data.routes.map((route, index) => {
+        const leg = route.legs[0];
+        return {
+          index,
+          coordinates: decodePolyline(route.overview_polyline.points),
+          distance: leg.distance.text,
+          duration: leg.duration.text,
+          summary: route.summary || `Route ${index + 1}`
+        };
+      });
+
+      res.json({ routes });
+    } catch (error) {
+      console.error('Route preview error:', error);
+      res.status(500).json({ error: 'Failed to fetch routes' });
+    }
   }
 };
+
+// Fonction utilitaire pour décoder les polylines
+function decodePolyline(encoded) {
+  const points = [];
+  let index = 0, len = encoded.length;
+  let lat = 0, lng = 0;
+
+  while (index < len) {
+    let shift = 0, result = 0;
+    let byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    points.push({
+      latitude: lat * 1e-5,
+      longitude: lng * 1e-5
+    });
+  }
+  return points;
+}
 
 module.exports = navigationController;

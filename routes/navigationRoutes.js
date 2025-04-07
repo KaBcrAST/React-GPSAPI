@@ -7,5 +7,6 @@ router.get('/distance', navigationController.getRemainingDistance);
 router.get('/info', navigationController.getRemainingInfo);
 router.get('/route', navigationController.getRoute);
 router.get('/speed-limit', speedLimitController.getSpeedLimit);
+router.get('/preview', navigationController.getRoutePreview); // Ajout de la route preview
 
 module.exports = router;
