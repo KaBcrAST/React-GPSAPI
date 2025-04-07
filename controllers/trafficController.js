@@ -5,9 +5,20 @@ const trafficService = require('../services/trafficService');
 const trafficController = {
   getTrafficStatus: async (req, res) => {
     try {
-      // Implémentation basique du statut
-      res.json({ status: 'ok' });
+      // Get recent traffic reports
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const trafficReports = await Report.find({
+        type: 'TRAFFIC',
+        createdAt: { $gte: tenMinutesAgo }
+      });
+
+      res.json({ 
+        status: 'ok',
+        trafficReports: trafficReports.length,
+        lastUpdate: new Date()
+      });
     } catch (error) {
+      console.error('Traffic status error:', error);
       res.status(500).json({ error: 'Failed to get traffic status' });
     }
   },
@@ -31,14 +42,50 @@ const trafficController = {
         });
       }
 
+      // Get recent traffic reports near the route
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const reports = await Report.aggregate([
+        {
+          $geoNear: {
+            near: {
+              type: "Point",
+              coordinates: [originLon, originLat]
+            },
+            distanceField: "distance",
+            maxDistance: 5000,
+            spherical: true,
+            query: {
+              type: "TRAFFIC",
+              createdAt: { $gte: tenMinutesAgo }
+            }
+          }
+        }
+      ]);
+
+      console.log(`Found ${reports.length} traffic reports near route`);
+
       const routeWithTraffic = await trafficService.getRouteTraffic(
         { latitude: originLat, longitude: originLon },
-        { latitude: destLat, longitude: destLon }
+        { latitude: destLat, longitude: destLon },
+        reports
       );
 
-      res.json(routeWithTraffic);
+      if (!routeWithTraffic) {
+        return res.status(404).json({
+          error: 'Could not calculate route'
+        });
+      }
+
+      res.json({
+        route: routeWithTraffic,
+        trafficReports: reports.length,
+        timestamp: new Date()
+      });
     } catch (error) {
-      console.error('Route traffic error:', error);
+      console.error('Route traffic error:', {
+        message: error.message,
+        stack: error.stack
+      });
       res.status(500).json({
         error: 'Failed to get route traffic information',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
