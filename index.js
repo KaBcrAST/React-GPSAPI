@@ -83,6 +83,7 @@ app.use('/api', speedLimitRoutes);
 app.use('/api', navigationRoutes);
 app.use('/api', reportRoutes);
 app.use('/api/traffic', trafficRoutes);
+app.use('/api/navigation', navigationRoutes);
 
 console.log('Map routes registered');
 
