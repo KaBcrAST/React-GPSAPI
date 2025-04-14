@@ -103,8 +103,7 @@ const authController = {
   googleAuth: passport.authenticate('google', { scope: ['email', 'profile'] }),
 
   googleAuthCallback: passport.authenticate('google', {
-    failureRedirect: '/auth/google/failure',
-    session: false // Add this to prevent session issues
+    failureRedirect: '/auth/google/failure'
   }),
 
   authSuccess: (req, res) => {
@@ -124,11 +123,11 @@ const authController = {
       };
 
       // Rediriger vers votre app avec le deep link
-      const redirectUrl = `gpsapp://auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userData))}`;
+      const redirectUrl = `https://react-gpsapi.vercel.app/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userData))}`;
       res.redirect(redirectUrl);
     } catch (error) {
       console.error('Auth error:', error);
-      res.redirect('gpsapp://auth/error');
+      res.redirect('https://react-gpsapi.vercel.app/auth/error');
     }
   },
 
