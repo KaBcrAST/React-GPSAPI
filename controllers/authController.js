@@ -109,10 +109,8 @@ const authController = {
 
   authSuccess: (req, res) => {
     try {
-      // Generate JWT token with user info
       const token = jwt.sign(
         { 
-          id: req.user._id,
           name: req.user.displayName, 
           email: req.user.email 
         }, 
@@ -120,20 +118,17 @@ const authController = {
         { expiresIn: '24h' }
       );
 
-      // Return JSON response instead of redirect
-      res.json({ 
-        success: true,
-        token,
-        user: {
-          name: req.user.displayName,
-          email: req.user.email
-        }
-      });
+      const userData = {
+        name: req.user.displayName,
+        email: req.user.email
+      };
+
+      // Rediriger vers votre app avec le deep link
+      const redirectUrl = `gpsapp://auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userData))}`;
+      res.redirect(redirectUrl);
     } catch (error) {
-      res.status(500).json({ 
-        success: false, 
-        message: 'Authentication failed' 
-      });
+      console.error('Auth error:', error);
+      res.redirect('gpsapp://auth/error');
     }
   },
 
