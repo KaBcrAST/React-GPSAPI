@@ -107,28 +107,10 @@ const authController = {
   }),
 
   authSuccess: (req, res) => {
-    try {
-      const token = jwt.sign(
-        { 
-          name: req.user.displayName, 
-          email: req.user.email 
-        }, 
-        process.env.JWT_SECRET, 
-        { expiresIn: '24h' }
-      );
-
-      const userData = {
-        name: req.user.displayName,
-        email: req.user.email
-      };
-
-      // Rediriger vers votre app avec le deep link
-      const redirectUrl = `https://react-gpsapi.vercel.app/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userData))}`;
-      res.redirect(redirectUrl);
-    } catch (error) {
-      console.error('Auth error:', error);
-      res.redirect('https://react-gpsapi.vercel.app/auth/error');
-    }
+    // Générer un token JWT
+    const token = jwt.sign({ name: req.user.displayName, email: req.user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // Rediriger vers la page d'accueil avec le token dans les query params
+    res.redirect(`https://react-gpsapi.vercel.app/oauth-redirect?token=${token}`);
   },
 
   authFailure: (req, res) => {
