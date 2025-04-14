@@ -92,9 +92,11 @@ const reportController = {
           $project: {
             _id: 0,
             type: "$_id.type",
-            location: "$_id.location",
+            location: {
+              type: "Point",
+              coordinates: "$coordinates"
+            },
             count: 1,
-            coordinates: 1,
             distance: 1
           }
         }
