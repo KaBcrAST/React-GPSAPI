@@ -103,14 +103,38 @@ const authController = {
   googleAuth: passport.authenticate('google', { scope: ['email', 'profile'] }),
 
   googleAuthCallback: passport.authenticate('google', {
-    failureRedirect: '/auth/google/failure'
+    failureRedirect: '/auth/google/failure',
+    session: false // Add this to prevent session issues
   }),
 
   authSuccess: (req, res) => {
-    // Générer un token JWT
-    const token = jwt.sign({ name: req.user.displayName, email: req.user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    // Rediriger vers la page d'accueil avec le token dans les query params
-    res.redirect(`https://react-gpsapi.vercel.app/oauth-redirect?token=${token}`);
+    try {
+      // Generate JWT token with user info
+      const token = jwt.sign(
+        { 
+          id: req.user._id,
+          name: req.user.displayName, 
+          email: req.user.email 
+        }, 
+        process.env.JWT_SECRET, 
+        { expiresIn: '24h' }
+      );
+
+      // Return JSON response instead of redirect
+      res.json({ 
+        success: true,
+        token,
+        user: {
+          name: req.user.displayName,
+          email: req.user.email
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: 'Authentication failed' 
+      });
+    }
   },
 
   authFailure: (req, res) => {
