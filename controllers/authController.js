@@ -103,13 +103,16 @@ const authController = {
   googleAuth: passport.authenticate('google', { scope: ['email', 'profile'] }),
 
   googleAuthCallback: passport.authenticate('google', {
-    failureRedirect: '/auth/google/failure'
+    failureRedirect: '/auth/google/failure',
+    session: false // Add this to prevent session issues
   }),
 
   authSuccess: (req, res) => {
     try {
+      // Generate JWT token with user info
       const token = jwt.sign(
         { 
+          id: req.user._id,
           name: req.user.displayName, 
           email: req.user.email 
         }, 
@@ -117,17 +120,20 @@ const authController = {
         { expiresIn: '24h' }
       );
 
-      const userData = {
-        name: req.user.displayName,
-        email: req.user.email
-      };
-
-      // Rediriger vers votre app avec le deep link
-      const redirectUrl = `https://react-gpsapi.vercel.app/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userData))}`;
-      res.redirect(redirectUrl);
+      // Return JSON response instead of redirect
+      res.json({ 
+        success: true,
+        token,
+        user: {
+          name: req.user.displayName,
+          email: req.user.email
+        }
+      });
     } catch (error) {
-      console.error('Auth error:', error);
-      res.redirect('https://react-gpsapi.vercel.app/auth/error');
+      res.status(500).json({ 
+        success: false, 
+        message: 'Authentication failed' 
+      });
     }
   },
 
