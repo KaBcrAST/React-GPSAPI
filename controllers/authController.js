@@ -102,15 +102,33 @@ const authController = {
 
   googleAuth: passport.authenticate('google', { scope: ['email', 'profile'] }),
 
-  googleAuthCallback: passport.authenticate('google', {
-    failureRedirect: '/auth/google/failure'
-  }),
+  googleAuthCallback: (req, res) => {
+    const token = jwt.sign(
+      { 
+        id: req.user._id,
+        email: req.user.email 
+      }, 
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.json({ token });
+  },
 
   authSuccess: (req, res) => {
-    // Générer un token JWT
-    const token = jwt.sign({ name: req.user.displayName, email: req.user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    // Rediriger vers la page d'accueil avec le token dans les query params
-    res.redirect(`https://react-gpsapi.vercel.app/oauth-redirect?token=${token}`);
+    const token = jwt.sign(
+      { 
+        id: req.user._id,
+        name: req.user.displayName, 
+        email: req.user.email 
+      }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '24h' }
+    );
+
+    // Use environment variable for frontend URL
+    const frontendUrl = process.env.FRONTEND_URL || 'https://react-gpsapi.vercel.app';
+    res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
   },
 
   authFailure: (req, res) => {
