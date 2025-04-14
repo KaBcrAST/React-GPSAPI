@@ -39,23 +39,12 @@ const reportController = {
         });
       }
 
-      // Validate coordinates
       const parsedLat = parseFloat(latitude);
       const parsedLng = parseFloat(longitude);
 
-      if (isNaN(parsedLat) || isNaN(parsedLng)) {
-        return res.status(400).json({
-          error: 'Invalid coordinates format'
-        });
-      }
-
-      // Clean old reports
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-      await Report.deleteMany({
-        createdAt: { $lt: tenMinutesAgo }
-      }).catch(err => console.error('Cleanup error:', err));
 
-      // Get nearby reports with better error handling
+      // Get reports grouped by proximity
       const reports = await Report.aggregate([
         {
           $geoNear: {
@@ -75,36 +64,47 @@ const reportController = {
           $group: {
             _id: {
               type: "$type",
+              // Group by rounded coordinates (creates clusters)
               location: {
-                $concat: [
-                  { $substr: [{ $arrayElemAt: ["$location.coordinates", 1] }, 0, 6] },
-                  ",",
-                  { $substr: [{ $arrayElemAt: ["$location.coordinates", 0] }, 0, 6] }
-                ]
+                lat: { 
+                  $round: [{ $arrayElemAt: ["$location.coordinates", 1] }, 4]
+                },
+                lng: { 
+                  $round: [{ $arrayElemAt: ["$location.coordinates", 0] }, 4]
+                }
               }
             },
             count: { $sum: 1 },
-            reports: { $push: "$$ROOT" },
-            lastReport: { $last: "$$ROOT" },
-            coordinates: { $first: "$location.coordinates" }
+            coordinates: { 
+              $first: "$location.coordinates"
+            },
+            distance: { $first: "$distance" },
+            reports: { $push: "$$ROOT" }
+          }
+        },
+        {
+          // Only return clusters with 5 or more reports
+          $match: {
+            count: { $gte: 5 }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            type: "$_id.type",
+            location: "$_id.location",
+            count: 1,
+            coordinates: 1,
+            distance: 1
           }
         }
-      ]).exec();
+      ]);
 
-      console.log('Reports found:', reports.length);
-
+      console.log('Clusters found:', reports.length);
       res.json(reports);
     } catch (error) {
-      console.error('Detailed error:', {
-        message: error.message,
-        stack: error.stack,
-        code: error.code
-      });
-      
-      res.status(500).json({ 
-        error: 'Failed to fetch reports',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
+      console.error('Error fetching reports:', error);
+      res.status(500).json({ error: 'Failed to fetch reports' });
     }
   },
 
