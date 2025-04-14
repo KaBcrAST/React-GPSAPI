@@ -127,7 +127,7 @@ const authController = {
       res.redirect(redirectUrl);
     } catch (error) {
       console.error('Auth error:', error);
-      res.redirect('gpsapp://auth/error');
+      res.redirect('https://react-gpsapi.vercel.app/auth/error');
     }
   },
 
