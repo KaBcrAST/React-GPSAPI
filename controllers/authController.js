@@ -108,21 +108,9 @@ const authController = {
 
   authSuccess: (req, res) => {
     // Générer un token JWT
-    const token = jwt.sign(
-      { 
-        id: req.user._id,
-        name: req.user.displayName, 
-        email: req.user.email 
-      }, 
-      process.env.JWT_SECRET, 
-      { expiresIn: '24h' }
-    );
-
-    // Rediriger vers l'app mobile avec un deep link
-    res.redirect(`gpsapp://auth/callback?token=${token}`);
-    
-    // Alternative: renvoyer le token en JSON si le deep link ne fonctionne pas
-    // res.json({ token });
+    const token = jwt.sign({ name: req.user.displayName, email: req.user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // Rediriger vers la page d'accueil avec le token dans les query params
+    res.redirect(`https://react-gpsapi.vercel.app/oauth-redirect?token=${token}`);
   },
 
   authFailure: (req, res) => {
