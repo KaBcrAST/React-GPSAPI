@@ -47,36 +47,66 @@ const sendVerificationEmail = async (email, verificationToken) => {
 const authController = {
   register: async (req, res) => {
     try {
-      const { email, username, password } = req.body;
-      
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        return res.status(400).json({ message: 'Email already exists' });
+      console.log('Received registration data:', req.body);
+
+      const { name, email, password } = req.body;
+
+      // Validation des champs
+      if (!name || !email || !password) {
+        return res.status(400).json({
+          success: false,
+          message: 'Tous les champs sont requis',
+          errors: {
+            name: !name ? { message: 'Le nom est requis' } : null,
+            email: !email ? { message: 'L\'email est requis' } : null,
+            password: !password ? { message: 'Le mot de passe est requis' } : null
+          }
+        });
       }
 
-      // Create verification token
-      const verificationToken = crypto.randomBytes(32).toString('hex');
+      // Vérifier si l'utilisateur existe déjà
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cet email est déjà utilisé'
+        });
+      }
+
+      // Hasher le mot de passe
       const hashedPassword = await bcrypt.hash(password, 10);
-      
-      const user = new User({
-        email,
-        username,
-        password: hashedPassword,
-        verificationToken,
-        isVerified: false
+
+      // Créer le nouvel utilisateur
+      const user = await User.create({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password: hashedPassword
       });
 
-      await user.save();
+      // Générer le token
+      const token = jwt.sign(
+        { id: user._id, name: user.name, email: user.email },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
 
-      // Send verification email
-      await sendVerificationEmail(email, verificationToken);
-
-      res.status(201).json({ 
-        message: 'Un email de vérification a été envoyé à votre adresse email',
-        token: jwt.sign({ id: user._id }, process.env.JWT_SECRET)
+      // Envoyer la réponse
+      res.status(201).json({
+        success: true,
+        token,
+        user: {
+          name: user.name,
+          email: user.email
+        }
       });
+
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error('Registration error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Erreur lors de l\'inscription',
+        errors: error.errors
+      });
     }
   },
 
@@ -296,65 +326,6 @@ const authController = {
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
-  }
-};
-
-const register = async (req, res) => {
-  try {
-    console.log('Received registration data:', req.body); // Pour déboguer
-
-    const { name, email, password } = req.body;
-
-    if (!name || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tous les champs sont requis',
-        errors: {
-          name: !name ? { message: 'Le nom est requis' } : null,
-          email: !email ? { message: 'L\'email est requis' } : null,
-          password: !password ? { message: 'Le mot de passe est requis' } : null
-        }
-      });
-    }
-
-    // Vérifier si l'utilisateur existe déjà
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cet email est déjà utilisé'
-      });
-    }
-
-    // Créer le nouvel utilisateur
-    const user = await User.create({
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password // Le password sera hashé via un middleware mongoose
-    });
-
-    const token = jwt.sign(
-      { id: user._id, name: user.name, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    res.status(201).json({
-      success: true,
-      token,
-      user: {
-        name: user.name,
-        email: user.email
-      }
-    });
-
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Erreur lors de l\'inscription',
-      errors: error.errors
-    });
   }
 };
 
