@@ -2,70 +2,40 @@ const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
-const nodemailer = require('nodemailer');
-const crypto = require('crypto');
 const axios = require('axios');
+const CryptoJS = require('crypto-js');
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp-mail.outlook.com', // or 'smtp.gmail.com'
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.GENERIC_EMAIL, // e.g., 'noreply.gpsapp@outlook.com'
-    pass: process.env.GENERIC_PASSWORD
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'votre-clé-très-complexe-ici';
+
+const decryptData = (encryptedData) => {
+  try {
+    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
+    return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw error;
   }
-});
-
-const sendVerificationEmail = async (email, verificationToken) => {
-  const verificationLink = `${process.env.FRONTEND_URL}/verify/${verificationToken}`;
-  
-  const mailOptions = {
-    from: '"GPS App" <noreply.gpsapp@outlook.com>',
-    to: email,
-    subject: 'Vérifiez votre compte GPS',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #333;">Bienvenue sur GPS App!</h1>
-        <p>Merci de vous être inscrit. Pour activer votre compte, veuillez cliquer sur le lien ci-dessous :</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${verificationLink}" 
-             style="background-color: #4CAF50; color: white; padding: 15px 25px; 
-                    text-decoration: none; border-radius: 5px;">
-            Vérifier mon compte
-          </a>
-        </div>
-        <p>Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :</p>
-        <p>${verificationLink}</p>
-        <p>Ce lien expirera dans 24 heures.</p>
-      </div>
-    `
-  };
-
-  await transporter.sendMail(mailOptions);
 };
 
 const authController = {
   register: async (req, res) => {
     try {
-      console.log('Received registration data:', req.body);
+      const { encryptedData } = req.body;
+      
+      // Decrypt the data
+      const decryptedData = decryptData(encryptedData);
+      const { name, email, password } = decryptedData;
 
-      const { name, email, password } = req.body;
-
-      // Validation des champs
+      // Validation basique
       if (!name || !email || !password) {
         return res.status(400).json({
           success: false,
-          message: 'Tous les champs sont requis',
-          errors: {
-            name: !name ? { message: 'Le nom est requis' } : null,
-            email: !email ? { message: 'L\'email est requis' } : null,
-            password: !password ? { message: 'Le mot de passe est requis' } : null
-          }
+          message: 'Tous les champs sont requis'
         });
       }
 
-      // Vérifier si l'utilisateur existe déjà
-      const existingUser = await User.findOne({ email });
+      // Vérifier l'utilisateur existant
+      const existingUser = await User.findOne({ email: email.toLowerCase() });
       if (existingUser) {
         return res.status(400).json({
           success: false,
@@ -73,25 +43,30 @@ const authController = {
         });
       }
 
-      // Hasher le mot de passe
-      const hashedPassword = await bcrypt.hash(password, 10);
+      // Hash du mot de passe
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
 
-      // Créer le nouvel utilisateur
+      // Créer l'utilisateur
       const user = await User.create({
         name: name.trim(),
-        email: email.trim().toLowerCase(),
+        email: email.toLowerCase().trim(),
         password: hashedPassword
       });
 
-      // Générer le token
+      // Générer le JWT
       const token = jwt.sign(
-        { id: user._id, name: user.name, email: user.email },
+        { 
+          id: user._id, 
+          name: user.name, 
+          email: user.email 
+        },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
       // Envoyer la réponse
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         token,
         user: {
@@ -101,11 +76,10 @@ const authController = {
       });
 
     } catch (error) {
-      console.error('Registration error:', error);
-      res.status(500).json({
+      console.error('Register error:', error);
+      return res.status(500).json({
         success: false,
-        message: error.message || 'Erreur lors de l\'inscription',
-        errors: error.errors
+        message: 'Erreur lors de l\'inscription'
       });
     }
   },
