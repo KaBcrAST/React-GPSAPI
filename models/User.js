@@ -4,26 +4,23 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
+    trim: true,
+    lowercase: true
   },
   name: {
     type: String,
-    required: true
-  },
-  googleId: {
-    type: String,
-    sparse: true
+    required: true,
+    trim: true
   },
   password: {
     type: String,
     required: function() {
-      return !this.googleId; // Requis seulement si pas de googleId
+      return !this.googleId;
     }
   },
-  picture: {
-    type: String,
-    default: null
-  },
+  googleId: String,
+  picture: String,
   lastLogin: {
     type: Date,
     default: Date.now
