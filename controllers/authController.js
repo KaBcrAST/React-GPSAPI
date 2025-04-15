@@ -299,4 +299,63 @@ const authController = {
   }
 };
 
+const register = async (req, res) => {
+  try {
+    console.log('Received registration data:', req.body); // Pour déboguer
+
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tous les champs sont requis',
+        errors: {
+          name: !name ? { message: 'Le nom est requis' } : null,
+          email: !email ? { message: 'L\'email est requis' } : null,
+          password: !password ? { message: 'Le mot de passe est requis' } : null
+        }
+      });
+    }
+
+    // Vérifier si l'utilisateur existe déjà
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cet email est déjà utilisé'
+      });
+    }
+
+    // Créer le nouvel utilisateur
+    const user = await User.create({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password // Le password sera hashé via un middleware mongoose
+    });
+
+    const token = jwt.sign(
+      { id: user._id, name: user.name, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        name: user.name,
+        email: user.email
+      }
+    });
+
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de l\'inscription',
+      errors: error.errors
+    });
+  }
+};
+
 module.exports = authController;
