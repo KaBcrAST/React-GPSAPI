@@ -3,25 +3,23 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
-const CryptoJS = require('crypto-js');
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'votre-clé-très-complexe-ici';
-
-const decryptData = (encryptedData) => {
-  try {
-    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-    return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-  } catch (error) {
-    console.error('Decryption error:', error);
-    throw error;
-  }
-};
+// Supprimez la configuration nodemailer si vous ne l'utilisez pas encore
 
 const authController = {
   register: async (req, res) => {
     try {
       const { name, email, password } = req.body;
 
+      // Validation basique
+      if (!name || !email || !password) {
+        return res.status(400).json({
+          success: false,
+          message: 'Tous les champs sont requis'
+        });
+      }
+
+      // Vérifier l'utilisateur existant
       const existingUser = await User.findOne({ email: email.toLowerCase() });
       if (existingUser) {
         return res.status(400).json({
@@ -30,22 +28,30 @@ const authController = {
         });
       }
 
+      // Hash du mot de passe
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
 
+      // Créer l'utilisateur
       const user = await User.create({
         name: name.trim(),
         email: email.toLowerCase().trim(),
         password: hashedPassword
       });
 
+      // Générer le JWT
       const token = jwt.sign(
-        { id: user._id, name: user.name, email: user.email },
+        { 
+          id: user._id, 
+          name: user.name, 
+          email: user.email 
+        },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      res.status(201).json({
+      // Envoyer la réponse
+      return res.status(201).json({
         success: true,
         token,
         user: {
@@ -56,7 +62,7 @@ const authController = {
 
     } catch (error) {
       console.error('Register error:', error);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Erreur lors de l\'inscription'
       });
