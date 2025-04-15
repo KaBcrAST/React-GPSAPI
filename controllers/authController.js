@@ -132,22 +132,25 @@ const authController = {
       });
 
       const userData = userInfoResponse.data;
+      console.log('Google user data:', userData); // Pour déboguer
 
-      // Créer ou mettre à jour l'utilisateur avec la photo
+      // Trouver ou créer l'utilisateur avec la photo
       let user = await User.findOne({ email: userData.email });
       if (!user) {
         user = await User.create({
           email: userData.email,
           name: userData.name,
-          picture: userData.picture, // Ajouter l'URL de la photo
-          googleId: userData.sub
+          googleId: userData.sub,
+          picture: userData.picture // Ajouter l'URL de la photo
         });
       } else {
-        user.picture = userData.picture; // Mettre à jour la photo
+        // Mettre à jour les informations, y compris la photo
+        user.picture = userData.picture;
+        user.lastLogin = new Date();
         await user.save();
       }
 
-      // Inclure la photo dans la réponse
+      // Générer le JWT avec la photo
       const token = jwt.sign(
         { 
           id: user._id,
@@ -159,7 +162,7 @@ const authController = {
         { expiresIn: '24h' }
       );
 
-      // Rediriger vers l'app mobile avec le token
+      // Rediriger vers l'app avec toutes les données
       res.redirect(`gpsapp://auth?token=${token}&user=${encodeURIComponent(JSON.stringify({
         name: user.name,
         email: user.email,

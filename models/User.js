@@ -14,6 +14,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     sparse: true
   },
+  picture: {
+    type: String,
+    default: null
+  },
   lastLogin: {
     type: Date,
     default: Date.now
