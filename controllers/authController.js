@@ -28,7 +28,8 @@ const authController = {
         });
       }
 
-      // Hash du mot de passe
+      // Le mot de passe arrive déjà hashé en SHA256
+      // On ajoute une couche supplémentaire avec bcrypt pour le stockage
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
 
