@@ -157,7 +157,8 @@ const authController = {
       // Rediriger vers l'app mobile avec le token
       res.redirect(`gpsapp://auth?token=${token}&user=${encodeURIComponent(JSON.stringify({
         name: user.name,
-        email: user.email
+        email: user.email,
+        picture: userData.picture // Ajout de l'URL de la photo
       }))}`);
 
     } catch (error) {
