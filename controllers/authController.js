@@ -20,21 +20,8 @@ const decryptData = (encryptedData) => {
 const authController = {
   register: async (req, res) => {
     try {
-      const { encryptedData } = req.body;
-      
-      // Decrypt the data
-      const decryptedData = decryptData(encryptedData);
-      const { name, email, password } = decryptedData;
+      const { name, email, password } = req.body;
 
-      // Validation basique
-      if (!name || !email || !password) {
-        return res.status(400).json({
-          success: false,
-          message: 'Tous les champs sont requis'
-        });
-      }
-
-      // Vérifier l'utilisateur existant
       const existingUser = await User.findOne({ email: email.toLowerCase() });
       if (existingUser) {
         return res.status(400).json({
@@ -43,30 +30,22 @@ const authController = {
         });
       }
 
-      // Hash du mot de passe
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
 
-      // Créer l'utilisateur
       const user = await User.create({
         name: name.trim(),
         email: email.toLowerCase().trim(),
         password: hashedPassword
       });
 
-      // Générer le JWT
       const token = jwt.sign(
-        { 
-          id: user._id, 
-          name: user.name, 
-          email: user.email 
-        },
+        { id: user._id, name: user.name, email: user.email },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      // Envoyer la réponse
-      return res.status(201).json({
+      res.status(201).json({
         success: true,
         token,
         user: {
@@ -77,7 +56,7 @@ const authController = {
 
     } catch (error) {
       console.error('Register error:', error);
-      return res.status(500).json({
+      res.status(500).json({
         success: false,
         message: 'Erreur lors de l\'inscription'
       });
