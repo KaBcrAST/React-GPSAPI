@@ -4,6 +4,7 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const axios = require('axios');
 
 const transporter = nodemailer.createTransport({
   host: 'smtp-mail.outlook.com', // or 'smtp.gmail.com'
@@ -100,12 +101,131 @@ const authController = {
     }
   },
 
-  googleAuth: passport.authenticate('google', { scope: ['email', 'profile'] }),
+  googleAuth: (req, res) => {
+    const redirectUri = `${process.env.API_URL}/auth/google/callback`;
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+      `response_type=code&` +
+      `scope=openid%20email%20profile`;
 
-  googleAuthCallback: passport.authenticate('google', {
-    failureRedirect: '/auth/google/failure',
-    session: false // Add this to prevent session issues
-  }),
+    res.redirect(url);
+  },
+
+  googleAuthCallback: async (req, res) => {
+    try {
+      const code = req.query.code;
+      const redirectUri = `${process.env.API_URL}/auth/google/callback`;
+
+      // Échange le code contre un token
+      const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code'
+      });
+
+      // Récupérer les infos utilisateur
+      const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
+      });
+
+      const userData = userInfoResponse.data;
+
+      // Trouver ou créer l'utilisateur
+      let user = await User.findOne({ email: userData.email });
+      if (!user) {
+        user = await User.create({
+          email: userData.email,
+          name: userData.name,
+          googleId: userData.sub
+        });
+      }
+
+      // Créer le JWT
+      const token = jwt.sign(
+        { 
+          id: user._id,
+          name: user.name,
+          email: user.email 
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      // Rediriger vers l'app mobile avec le token
+      res.redirect(`gpsapp://auth?token=${token}&user=${encodeURIComponent(JSON.stringify({
+        name: user.name,
+        email: user.email
+      }))}`);
+
+    } catch (error) {
+      console.error('Google auth callback error:', error);
+      res.redirect('gpsapp://auth/error');
+    }
+  },
+
+  mobileGoogleAuth: async (req, res) => {
+    try {
+      const { accessToken } = req.body;
+      
+      // Vérifier le token avec l'API Google
+      const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      
+      const googleUserData = await response.json();
+      
+      if (!googleUserData.email) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Invalid Google token' 
+        });
+      }
+
+      // Trouver ou créer l'utilisateur
+      let user = await User.findOne({ email: googleUserData.email });
+      
+      if (!user) {
+        user = await User.create({
+          email: googleUserData.email,
+          name: googleUserData.name,
+          googleId: googleUserData.sub
+        });
+      }
+
+      // Mettre à jour la date de dernière connexion
+      user.lastLogin = new Date();
+      await user.save();
+
+      // Générer le JWT
+      const token = jwt.sign(
+        { 
+          id: user._id,
+          name: user.name,
+          email: user.email
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      res.json({
+        success: true,
+        token,
+        user: {
+          name: user.name,
+          email: user.email
+        }
+      });
+    } catch (error) {
+      console.error('Mobile Google auth error:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Authentication failed' 
+      });
+    }
+  },
 
   authSuccess: (req, res) => {
     try {
@@ -138,7 +258,10 @@ const authController = {
   },
 
   authFailure: (req, res) => {
-    res.send('Failed to authenticate..');
+    res.status(401).json({ 
+      success: false, 
+      message: 'Google authentication failed' 
+    });
   },
 
   logout: (req, res) => {

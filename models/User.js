@@ -6,13 +6,18 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  username: String,
-  password: String,
-  googleId: String,
-  createdAt: {
+  name: {
+    type: String,
+    required: true
+  },
+  googleId: {
+    type: String,
+    sparse: true
+  },
+  lastLogin: {
     type: Date,
     default: Date.now
   }
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
