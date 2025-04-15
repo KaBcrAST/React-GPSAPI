@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const axios = require('axios');
+const CryptoJS = require('crypto-js');
 
 const transporter = nodemailer.createTransport({
   host: 'smtp-mail.outlook.com', // or 'smtp.gmail.com'
@@ -44,12 +45,22 @@ const sendVerificationEmail = async (email, verificationToken) => {
   await transporter.sendMail(mailOptions);
 };
 
+const decryptData = (encryptedData) => {
+  const secretKey = process.env.ENCRYPTION_KEY || 'your-fallback-key';
+  const bytes = CryptoJS.AES.decrypt(encryptedData, secretKey);
+  return JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+};
+
 const authController = {
   register: async (req, res) => {
     try {
-      console.log('Received registration data:', req.body);
+      const { encryptedData } = req.body;
+      
+      // Decrypt the data
+      const decryptedData = decryptData(encryptedData);
+      const { name, email, password } = decryptedData;
 
-      const { name, email, password } = req.body;
+      console.log('Decrypted registration data:', { name, email, passwordLength: password?.length });
 
       // Validation des champs
       if (!name || !email || !password) {
