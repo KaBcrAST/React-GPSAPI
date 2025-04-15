@@ -73,21 +73,61 @@ const authController = {
   login: async (req, res) => {
     try {
       const { email, password } = req.body;
-      const user = await User.findOne({ email });
-      
+
+      // Debug pour voir les données reçues
+      console.log('Login attempt:', { 
+        email, 
+        passwordLength: password?.length 
+      });
+
+      const user = await User.findOne({ email: email.toLowerCase() });
       if (!user) {
-        return res.status(400).json({ message: 'User not found' });
+        return res.status(400).json({
+          success: false,
+          message: 'Email ou mot de passe incorrect'
+        });
       }
 
-      const validPassword = await bcrypt.compare(password, user.password);
-      if (!validPassword) {
-        return res.status(400).json({ message: 'Invalid password' });
+      // Le mot de passe arrive déjà hashé en SHA256 du front
+      // On le compare directement avec celui stocké en base
+      if (password !== user.password) {
+        console.log('Password mismatch'); // Debug
+        return res.status(400).json({
+          success: false,
+          message: 'Email ou mot de passe incorrect'
+        });
       }
 
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
-      res.json({ token });
+      // Générer le JWT
+      const token = jwt.sign(
+        { 
+          id: user._id, 
+          name: user.name, 
+          email: user.email 
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      // Mettre à jour la dernière connexion
+      user.lastLogin = new Date();
+      await user.save();
+
+      return res.json({
+        success: true,
+        token,
+        user: {
+          name: user.name,
+          email: user.email
+        }
+      });
+
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      console.error('Login error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la connexion'
+      });
     }
   },
 
