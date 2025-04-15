@@ -126,29 +126,34 @@ const authController = {
         grant_type: 'authorization_code'
       });
 
-      // Récupérer les infos utilisateur
+      // Récupérer les infos utilisateur avec l'access token
       const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
       });
 
       const userData = userInfoResponse.data;
 
-      // Trouver ou créer l'utilisateur
+      // Créer ou mettre à jour l'utilisateur avec la photo
       let user = await User.findOne({ email: userData.email });
       if (!user) {
         user = await User.create({
           email: userData.email,
           name: userData.name,
+          picture: userData.picture, // Ajouter l'URL de la photo
           googleId: userData.sub
         });
+      } else {
+        user.picture = userData.picture; // Mettre à jour la photo
+        await user.save();
       }
 
-      // Créer le JWT
+      // Inclure la photo dans la réponse
       const token = jwt.sign(
         { 
           id: user._id,
           name: user.name,
-          email: user.email 
+          email: user.email,
+          picture: user.picture // Inclure la photo dans le token
         },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
@@ -158,7 +163,7 @@ const authController = {
       res.redirect(`gpsapp://auth?token=${token}&user=${encodeURIComponent(JSON.stringify({
         name: user.name,
         email: user.email,
-        picture: userData.picture // Ajout de l'URL de la photo
+        picture: user.picture
       }))}`);
 
     } catch (error) {
