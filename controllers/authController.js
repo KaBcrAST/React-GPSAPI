@@ -135,19 +135,17 @@ const authController = {
       });
 
       const userData = userInfoResponse.data;
-      console.log('Google user data:', userData); // Pour déboguer
+      console.log('Google user data:', userData);
 
-      // Trouver ou créer l'utilisateur avec la photo
       let user = await User.findOne({ email: userData.email });
       if (!user) {
         user = await User.create({
           email: userData.email,
           name: userData.name,
           googleId: userData.sub,
-          picture: userData.picture // Ajouter l'URL de la photo
+          picture: userData.picture
         });
       } else {
-        // Mettre à jour les informations, y compris la photo
         user.picture = userData.picture;
         user.lastLogin = new Date();
         await user.save();
