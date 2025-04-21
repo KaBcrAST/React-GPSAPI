@@ -178,43 +178,25 @@ const authController = {
 
   mobileGoogleAuth: async (req, res) => {
     try {
-      const { accessToken } = req.body;
+      const { email, name, picture } = req.body;
       
-      // Vérifier le token avec l'API Google
-      const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-      
-      const googleUserData = await response.json();
-      
-      if (!googleUserData.email) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Invalid Google token' 
-        });
-      }
-
-      // Trouver ou créer l'utilisateur
-      let user = await User.findOne({ email: googleUserData.email });
+      // Find or create user
+      let user = await User.findOne({ email });
       
       if (!user) {
         user = await User.create({
-          email: googleUserData.email,
-          name: googleUserData.name,
-          googleId: googleUserData.sub
+          email,
+          name,
+          picture,
+          googleId: email // Using email as googleId since we don't get it from mobile
         });
       }
 
-      // Mettre à jour la date de dernière connexion
-      user.lastLogin = new Date();
-      await user.save();
-
-      // Générer le JWT
       const token = jwt.sign(
         { 
-          id: user._id,
-          name: user.name,
-          email: user.email
+          id: user._id, // Include the MongoDB _id
+          email: user.email,
+          name: user.name
         },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
@@ -224,16 +206,15 @@ const authController = {
         success: true,
         token,
         user: {
+          _id: user._id, // Include the MongoDB _id
+          email: user.email,
           name: user.name,
-          email: user.email
+          picture: user.picture
         }
       });
     } catch (error) {
       console.error('Mobile Google auth error:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Authentication failed' 
-      });
+      res.status(500).json({ success: false, message: 'Server error' });
     }
   },
 
