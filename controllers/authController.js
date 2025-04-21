@@ -278,6 +278,36 @@ const authController = {
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
+  },
+
+  me: async (req, res) => {
+    try {
+      // req.user should be set by your auth middleware
+      const user = await User.findById(req.user.id);
+      
+      if (!user) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'User not found' 
+        });
+      }
+
+      res.json({
+        success: true,
+        user: {
+          _id: user._id,
+          email: user.email,
+          name: user.name,
+          picture: user.picture
+        }
+      });
+    } catch (error) {
+      console.error('Get user error:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Server error' 
+      });
+    }
   }
 };
 

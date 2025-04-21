@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const { validateAuth } = require('../middleware/validator');
+const authMiddleware = require('../middleware/auth');
 
 // Routes d'authentification
 router.post('/register', validateAuth, authController.register);
@@ -17,5 +18,6 @@ router.post('/mobile/google', authController.mobileGoogleAuth);
 
 router.get('/success', authController.authSuccess);
 router.get('/logout', authController.logout);
+router.get('/me', authMiddleware, authController.me);
 
 module.exports = router;
