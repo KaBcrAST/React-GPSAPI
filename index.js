@@ -16,7 +16,6 @@ const navigationRoutes = require('./routes/navigationRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const connectDB = require('./config/database');
 const trafficRoutes = require('./routes/trafficRoutes');
-const historyRoutes = require('./routes/history');
 const historyRoutes = require('./routes/historyRoutes');
 
 const app = express();
@@ -86,7 +85,6 @@ app.use('/api', navigationRoutes);
 app.use('/api', reportRoutes);
 app.use('/api/traffic', trafficRoutes);
 app.use('/api/navigation', navigationRoutes);
-app.use('/history', historyRoutes);
 app.use('/history', historyRoutes);
 
 console.log('Map routes registered');
