@@ -1,5 +1,6 @@
 const axios = require('axios');
 require('dotenv').config();
+const History = require('../models/History');
 
 const navigationController = {
   getRemainingDistance: async (req, res) => {
@@ -205,6 +206,46 @@ const navigationController = {
     } catch (error) {
       console.error('Route preview error:', error);
       res.status(500).json({ error: 'Failed to fetch routes' });
+    }
+  },
+
+  startNavigation: async (req, res) => {
+    try {
+      const { userId, destination } = req.body;
+
+      // Sauvegarder dans l'historique
+      if (userId) {
+        let history = await History.findOne({ userId });
+        if (!history) {
+          history = new History({ userId, destinations: [] });
+        }
+
+        history.destinations.unshift({
+          name: destination.name || 'Destination',
+          address: destination.address || '',
+          coordinates: {
+            latitude: destination.latitude,
+            longitude: destination.longitude
+          }
+        });
+
+        if (history.destinations.length > 5) {
+          history.destinations = history.destinations.slice(0, 5);
+        }
+
+        await history.save();
+      }
+
+      // Reste de votre logique de navigation existante
+      // ...existing code...
+
+      res.json({
+        success: true,
+        message: 'Navigation started'
+      });
+    } catch (error) {
+      console.error('Navigation error:', error);
+      res.status(500).json({ success: false, message: 'Server error' });
     }
   }
 };

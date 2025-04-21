@@ -13,7 +13,7 @@ const historySchema = new mongoose.Schema({
       latitude: Number,
       longitude: Number
     },
-    timestamp: {
+    createdAt: {
       type: Date,
       default: Date.now
     }
