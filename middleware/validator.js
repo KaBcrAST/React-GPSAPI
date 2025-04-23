@@ -1,6 +1,5 @@
 const { check, validationResult } = require('express-validator');
 
-// Validation rules for authentication
 const validateAuth = [
   check('email')
     .isEmail()
@@ -10,7 +9,6 @@ const validateAuth = [
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters long'),
 
-  // Validation middleware
   (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

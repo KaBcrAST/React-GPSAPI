@@ -163,7 +163,7 @@ const navigationController = {
 
   getRoutePreview: async (req, res) => {
     try {
-      const { origin, destination } = req.query;
+      const { origin, destination, avoidTolls } = req.query;
 
       if (!origin || !destination) {
         return res.status(400).json({
@@ -171,15 +171,23 @@ const navigationController = {
         });
       }
 
-      const response = await axios.get('https://maps.googleapis.com/maps/api/directions/json', {
-        params: {
-          origin,
-          destination,
-          alternatives: true,
-          mode: 'driving',
-          key: process.env.GOOGLE_MAPS_API_KEY
-        }
-      });
+      const params = {
+        origin,
+        destination,
+        alternatives: true,
+        mode: 'driving',
+        language: 'fr',
+        region: 'fr',
+        key: process.env.GOOGLE_MAPS_API_KEY
+      };
+
+      // Ajouter l'option d'évitement des péages si demandé
+      if (avoidTolls === 'true') {
+        console.log('🚫 Preview without tolls');
+        params.avoid = 'tolls';
+      }
+
+      const response = await axios.get('https://maps.googleapis.com/maps/api/directions/json', { params });
 
       if (response.data.status !== 'OK') {
         throw new Error(`Google Maps API error: ${response.data.status}`);
@@ -190,13 +198,16 @@ const navigationController = {
         return {
           index,
           coordinates: decodePolyline(route.overview_polyline.points),
-          distance: leg.distance.text,
-          duration: leg.duration.text,
-          summary: route.summary || `Route ${index + 1}`
+          distance: leg.distance,
+          duration: leg.duration,
+          summary: route.summary || `Route ${index + 1}`,
+          hasTolls: route.warnings?.some(w => w.toLowerCase().includes('toll')) || false
         };
       });
 
+      console.log(`✅ Found ${routes.length} preview routes`);
       res.json({ routes });
+
     } catch (error) {
       console.error('Route preview error:', error);
       res.status(500).json({ error: 'Failed to fetch routes' });

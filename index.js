@@ -19,11 +19,8 @@ const trafficRoutes = require('./routes/trafficRoutes');
 const historyRoutes = require('./routes/historyRoutes');
 
 const app = express();
-
-// Connect to MongoDB
 connectDB();
 
-// Configurez CORS pour autoriser les requêtes de votre front-end
 app.use(cors({
   origin: '*',
   credentials: true
@@ -45,7 +42,6 @@ app.use(express.urlencoded({
   limit: '10mb' 
 }));
 
-// Add request logging middleware
 app.use((req, res, next) => {
   console.log(`📝 ${req.method} ${req.path}`, {
     body: req.body,
@@ -55,9 +51,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Update timeout middleware with better error handling
 app.use((req, res, next) => {
-  const timeout = parseInt(process.env.FUNCTION_TIMEOUT) || 30000; // Increase to 30s
+  const timeout = parseInt(process.env.FUNCTION_TIMEOUT) || 30000; 
   
   const timeoutHandler = setTimeout(() => {
     console.error(`⏰ Request timeout for ${req.method} ${req.path}`);
@@ -97,7 +92,6 @@ app.get('/protected', isAuthenticated, (req, res) => {
   res.send('This is a protected route');
 });
 
-// Update error handling middleware
 app.use((err, req, res, next) => {
   console.error('❌ Error:', {
     path: req.path,
@@ -107,7 +101,6 @@ app.use((err, req, res, next) => {
     code: err.code
   });
 
-  // Handle specific error types
   switch (err.name) {
     case 'MongoTimeoutError':
       return res.status(504).json({

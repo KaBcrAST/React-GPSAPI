@@ -3,10 +3,8 @@ const axios = require('axios');
 class TrafficService {
   async getRouteTraffic(origin, destination, reports = []) {
     try {
-      // Calculer une ligne droite entre l'origine et la destination
       const path = this.calculateDirectPath(origin, destination);
       
-      // Regrouper les reports par segments
       const segments = this.createSegments(path, reports);
 
       return {
@@ -25,7 +23,6 @@ class TrafficService {
   }
 
   calculateDirectPath(origin, destination) {
-    // Créer un chemin simple en ligne droite
     const steps = 10;
     const path = [];
     
@@ -57,7 +54,7 @@ class TrafficService {
   }
 
   calculateDistance(point1, point2) {
-    const R = 6371e3; // Rayon de la terre en mètres
+    const R = 6371e3;
     const φ1 = point1.latitude * Math.PI/180;
     const φ2 = point2.latitude * Math.PI/180;
     const Δφ = (point2.latitude - point1.latitude) * Math.PI/180;
@@ -73,8 +70,8 @@ class TrafficService {
 
   estimateDuration(origin, destination) {
     const distance = this.calculateDistance(origin, destination);
-    const averageSpeed = 30; // 30 km/h en ville
-    return Math.round((distance / 1000) / averageSpeed * 3600); // durée en secondes
+    const averageSpeed = 30;
+    return Math.round((distance / 1000) / averageSpeed * 3600);
   }
 
   isReportNearSegment(report, start, end) {
@@ -82,11 +79,10 @@ class TrafficService {
       { latitude: report.location.coordinates[1], longitude: report.location.coordinates[0] },
       start
     );
-    return distance < 1000; // 1km de rayon
+    return distance < 1000;
   }
 
   groupReportsByClusters(reports) {
-    // Regrouper les reports qui sont à moins de 100m les uns des autres
     const clusters = [];
     
     for (const report of reports) {

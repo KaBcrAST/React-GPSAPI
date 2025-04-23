@@ -44,7 +44,6 @@ const reportController = {
 
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
 
-      // Get reports grouped by proximity
       const reports = await Report.aggregate([
         {
           $geoNear: {
@@ -64,7 +63,6 @@ const reportController = {
           $group: {
             _id: {
               type: "$type",
-              // Group by rounded coordinates (creates clusters)
               location: {
                 lat: { 
                   $round: [{ $arrayElemAt: ["$location.coordinates", 1] }, 4]
@@ -83,7 +81,6 @@ const reportController = {
           }
         },
         {
-          // Only return clusters with 5 or more reports
           $match: {
             count: { $gte: 5 }
           }
@@ -135,7 +132,6 @@ const reportController = {
     try {
       const { bounds, minReports = 5 } = req.query;
       
-      // Parse map bounds
       const boundingBox = JSON.parse(bounds);
       
       const clusters = await Report.aggregate([
@@ -177,7 +173,6 @@ const reportController = {
     }
   },
 
-  // Optionnel: Ajouter une tâche planifiée pour nettoyer régulièrement
   cleanupOldReports: async () => {
     try {
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
@@ -200,11 +195,9 @@ const reportController = {
         });
       }
 
-      // Parse coordinates
       const [originLat, originLon] = origin.split(',').map(Number);
       const [destLat, destLon] = destination.split(',').map(Number);
 
-      // Get reports along the route
       const reports = await Report.aggregate([
         {
           $geoNear: {
@@ -222,7 +215,6 @@ const reportController = {
         }
       ]);
 
-      // Get route with traffic info
       const routeWithTraffic = await trafficService.getRouteTraffic(
         { latitude: originLat, longitude: originLon },
         { latitude: destLat, longitude: destLon },
@@ -240,7 +232,6 @@ const reportController = {
   }
 };
 
-// Nettoyer les vieux reports toutes les minutes
 setInterval(reportController.cleanupOldReports, 60 * 1000);
 
 module.exports = reportController;

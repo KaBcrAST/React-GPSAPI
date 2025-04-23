@@ -10,8 +10,8 @@ const searchController = {
           params: {
             input: query,
             key: process.env.GOOGLE_MAPS_API_KEY,
-            language: 'fr', // Set language to French
-            components: 'country:fr', // Restrict to France
+            language: 'fr',
+            components: 'country:fr',
           }
         }
       );
@@ -32,7 +32,7 @@ const searchController = {
           params: {
             place_id: placeId,
             key: process.env.GOOGLE_MAPS_API_KEY,
-            language: 'fr', // Set language to French
+            language: 'fr',
             fields: 'geometry,formatted_address,name'
           }
         }

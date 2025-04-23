@@ -9,12 +9,10 @@ const speedLimitController = {
     }
 
     try {
-      // Get nearest road from OSRM
       const osrmResponse = await axios.get(
         `https://router.project-osrm.org/nearest/v1/driving/${longitude},${latitude}?number=1`
       );
 
-      // Get speed limit from Overpass API
       const overpassQuery = `
         [out:json];
         way(around:20,${latitude},${longitude})[maxspeed];

@@ -20,17 +20,16 @@ const reportSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    expires: 600 // 10 minutes en secondes
+    expires: 600
   },
   upvotes: {
     type: Number,
     default: 0
   }
 }, {
-  collection: 'reports' // Explicitly set collection name
+  collection: 'reports'
 });
 
-// Add geospatial index
 reportSchema.index({ location: '2dsphere' });
 
 const Report = mongoose.model('Report', reportSchema);

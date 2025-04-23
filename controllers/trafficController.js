@@ -5,7 +5,6 @@ const trafficService = require('../services/trafficService');
 const trafficController = {
   getTrafficStatus: async (req, res) => {
     try {
-      // Get recent traffic reports
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       const trafficReports = await Report.find({
         type: 'TRAFFIC',
@@ -42,7 +41,6 @@ const trafficController = {
         });
       }
 
-      // Get recent traffic reports near the route
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       const reports = await Report.aggregate([
         {
