@@ -8,5 +8,6 @@ router.get('/info', navigationController.getRemainingInfo);
 router.get('/route', navigationController.getRoute);
 router.get('/speed-limit', speedLimitController.getSpeedLimit);
 router.get('/preview', navigationController.getRoutePreview); // Ajout de la route preview
+router.get('/route-without-tolls', navigationController.getRouteWithoutTolls);
 
 module.exports = router;

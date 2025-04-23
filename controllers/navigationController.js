@@ -86,7 +86,7 @@ const navigationController = {
     const { origin, destination, avoidTolls } = req.query;
 
     try {
-      console.log('📍 Route request:', { origin, destination, avoidTolls });
+      console.log('🚗 Route request:', { origin, destination, avoidTolls });
       
       const params = {
         origin,
@@ -99,7 +99,7 @@ const navigationController = {
         key: process.env.GOOGLE_MAPS_API_KEY
       };
 
-      // Important: vérifier la valeur comme une chaîne 'true'
+      // Convert string 'true'/'false' to boolean
       if (avoidTolls === 'true') {
         console.log('🚫 Avoiding tolls for this route');
         params.avoid = 'tolls';
@@ -240,6 +240,54 @@ const navigationController = {
     } catch (error) {
       console.error('Navigation error:', error);
       res.status(500).json({ success: false, message: 'Server error' });
+    }
+  },
+
+  getRouteWithoutTolls: async (req, res) => {
+    const { origin, destination } = req.query;
+
+    if (!origin || !destination) {
+      return res.status(400).json({ error: 'Origin and destination are required' });
+    }
+
+    try {
+      console.log('🚫 Calculating route without tolls');
+      
+      const params = {
+        origin,
+        destination,
+        alternatives: false, // Une seule route sans péage
+        mode: 'driving',
+        avoid: 'tolls', // Toujours éviter les péages
+        language: 'fr',
+        region: 'fr',
+        units: 'metric',
+        key: process.env.GOOGLE_MAPS_API_KEY
+      };
+
+      const response = await axios.get(
+        'https://maps.googleapis.com/maps/api/directions/json',
+        { params }
+      );
+
+      if (!response.data.routes || response.data.status !== 'OK') {
+        throw new Error('No route found');
+      }
+
+      const route = response.data.routes[0];
+      const formattedRoute = {
+        distance: route.legs[0].distance,
+        duration: route.legs[0].duration,
+        coordinates: decodePolyline(route.overview_polyline.points),
+        summary: 'Route sans péages'
+      };
+
+      console.log('✅ Found route without tolls');
+      res.json({ status: 'OK', route: formattedRoute });
+
+    } catch (error) {
+      console.error('❌ Error calculating route:', error);
+      res.status(500).json({ error: 'Failed to calculate route' });
     }
   }
 };
