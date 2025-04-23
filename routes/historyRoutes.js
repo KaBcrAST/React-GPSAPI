@@ -43,29 +43,4 @@ router.get('/:userId', async (req, res) => {
   }
 });
 
-// Add this new route
-router.get('/email/:email', async (req, res) => {
-  try {
-    const { email } = req.params;
-    // Find user by email first
-    const user = await User.findOne({ email: email.toLowerCase() });
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    const history = await History.findOne({ userId: user._id });
-    res.json({
-      success: true,
-      history: history ? history.destinations : []
-    });
-  } catch (error) {
-    console.error('Get history by email error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
 module.exports = router;

@@ -83,18 +83,11 @@ const navigationController = {
   },
 
   getRoute: async (req, res) => {
-    const { origin, destination, avoid } = req.query;
-
-    if (!origin || !destination) {
-      return res.status(400).json({ 
-        error: 'Origin and destination coordinates are required' 
-      });
-    }
+    const { origin, destination, avoidTolls } = req.query;
 
     try {
-      console.log('🚗 Calculating route:', { origin, destination, avoid });
-
-      // Simplified params - only use what Google Maps API actually supports
+      console.log('📍 Route request:', { origin, destination, avoidTolls });
+      
       const params = {
         origin,
         destination,
@@ -106,9 +99,10 @@ const navigationController = {
         key: process.env.GOOGLE_MAPS_API_KEY
       };
 
-      // Add avoid parameter if specified
-      if (avoid) {
-        params.avoid = avoid;
+      // Important: vérifier la valeur comme une chaîne 'true'
+      if (avoidTolls === 'true') {
+        console.log('🚫 Avoiding tolls for this route');
+        params.avoid = 'tolls';
       }
 
       const response = await axios.get(
