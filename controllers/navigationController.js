@@ -176,7 +176,7 @@ const navigationController = {
         destination,
         alternatives: true,
         mode: 'driving',
-        language: 'fr',
+        language: 'fr',  
         region: 'fr',
         key: process.env.GOOGLE_MAPS_API_KEY
       };
@@ -198,10 +198,13 @@ const navigationController = {
         return {
           index,
           coordinates: decodePolyline(route.overview_polyline.points),
-          distance: leg.distance,
-          duration: leg.duration,
+          distance: leg.distance.text, // Utiliser directement .text
+          duration: leg.duration.text, // Utiliser directement .text
           summary: route.summary || `Route ${index + 1}`,
-          hasTolls: route.warnings?.some(w => w.toLowerCase().includes('toll')) || false
+          hasTolls: route.warnings?.some(w => w.toLowerCase().includes('toll')) || false,
+          // Garder les valeurs numériques pour les calculs si nécessaire
+          distanceValue: leg.distance.value,
+          durationValue: leg.duration.value
         };
       });
 
