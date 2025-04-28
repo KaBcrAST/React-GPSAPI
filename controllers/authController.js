@@ -308,7 +308,83 @@ const authController = {
         message: 'Server error' 
       });
     }
-  }
+  },
+
+  // Add new web-specific Google OAuth methods
+  googleWebAuth: (req, res) => {
+    const redirectUri = `${process.env.API_URL}/auth/google/web/callback`;
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+      `response_type=code&` +
+      `scope=openid%20email%20profile`;
+
+    res.redirect(url);
+  },
+
+  googleWebCallback: async (req, res) => {
+    try {
+      const code = req.query.code;
+      const redirectUri = `${process.env.API_URL}/auth/google/web/callback`;
+
+      // Échange le code contre un token
+      const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code'
+      });
+
+      // Récupérer les infos utilisateur avec l'access token
+      const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
+      });
+
+      const userData = userInfoResponse.data;
+      console.log('Google user data (web):', userData);
+
+      let user = await User.findOne({ email: userData.email });
+      if (!user) {
+        user = await User.create({
+          email: userData.email,
+          name: userData.name,
+          googleId: userData.sub,
+          picture: userData.picture
+        });
+      } else {
+        user.picture = userData.picture;
+        user.lastLogin = new Date();
+        await user.save();
+      }
+
+      // Générer le JWT avec la photo
+      const token = jwt.sign(
+        { 
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          picture: user.picture
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      // Rediriger vers l'application Web avec les données
+      // Utiliser une URL standard au lieu d'une URI app mobile
+      const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendURL}/oauth-redirect?token=${token}&user=${encodeURIComponent(JSON.stringify({
+        name: user.name,
+        email: user.email,
+        picture: user.picture
+      }))}`);
+
+    } catch (error) {
+      console.error('Google web auth callback error:', error);
+      const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendURL}/login?error=Authentication failed`);
+    }
+  },
 };
 
 module.exports = authController;
