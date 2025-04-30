@@ -69,7 +69,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/auth', authRoutes);
+app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/gps', gpsRoutes);
 app.use('/api', directionsRoutes);
 app.use('/api', qrCodeRoutes);
