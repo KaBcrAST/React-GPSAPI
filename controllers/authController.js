@@ -9,7 +9,17 @@ const axios = require('axios');
 const authController = {
   register: async (req, res) => {
     try {
+      console.log('Register attempt received:', req.body);
       const { name, email, password } = req.body;
+
+      // Validation des données
+      if (!name || !email || !password) {
+        console.log('Missing required fields');
+        return res.status(400).json({
+          success: false,
+          message: 'Tous les champs sont requis'
+        });
+      }
 
       // Le mot de passe arrive déjà hashé en SHA256 du frontend
       console.log('Registering new user:', email);
@@ -54,7 +64,7 @@ const authController = {
       });
 
     } catch (error) {
-      console.error('Register error:', error);
+      console.error('Register error details:', error);
       return res.status(500).json({
         success: false,
         message: 'Erreur lors de l\'inscription',
