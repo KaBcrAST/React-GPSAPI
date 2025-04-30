@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 const reportStatsSchema = new mongoose.Schema({
   originalReportId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Report',
-    required: true
+    ref: 'Report'
   },
   type: {
     type: String,
@@ -28,14 +27,12 @@ const reportStatsSchema = new mongoose.Schema({
   },
   createdAt: {
     type: Date,
-    default: Date.now
-  },
-  expiresAt: {
-    type: Date,
-    required: true
+    default: Date.now,
+    expires: 86400 // Expire après 24h
   }
 });
 
 reportStatsSchema.index({ location: '2dsphere' });
+reportStatsSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 }); // TTL index
 
 module.exports = mongoose.model('ReportStats', reportStatsSchema);
