@@ -1,15 +1,14 @@
 const reportStatsController = require('../controllers/reportStatsController');
 
 const duplicateToStats = async (req, res, next) => {
-  const oldJson = res.json;
+  const originalJson = res.json;
 
   res.json = function(data) {
-    // Si c'est un nouveau report, le dupliquer dans les stats
-    if (req.method === 'POST' && data._id) {
-      reportStatsController.duplicateReport(data);
+    if (req.method === 'POST' && req.path === '/reports' && data._id) {
+      reportStatsController.duplicateToStats(data)
+        .catch(err => console.error('Error in stats middleware:', err));
     }
-    
-    return oldJson.apply(res, arguments);
+    return originalJson.apply(res, arguments);
   };
 
   next();
