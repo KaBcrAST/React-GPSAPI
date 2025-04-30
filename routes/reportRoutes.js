@@ -8,6 +8,8 @@ router.get('/reports', reportController.getNearbyReports);
 
 router.get('/reports/clusters', reportController.getReportClusters);
 
+router.get('/reports/all', reportController.getAllReports);
+
 router.post('/reports/:reportId/upvote', reportController.upvoteReport);
 
 module.exports = router;

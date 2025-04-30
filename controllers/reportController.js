@@ -1,4 +1,5 @@
 const Report = require('../models/Report');
+const ReportAll = require('../models/ReportAll');
 const trafficService = require('../services/trafficService');
 
 const reportController = {
@@ -228,6 +229,37 @@ const reportController = {
         error: 'Failed to get route traffic information',
         details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
+    }
+  },
+
+  getAllReports: async (req, res) => {
+    try {
+      // Dupliquer le report dans ReportAll
+      const reports = await Report.find();
+      
+      // Pour chaque report, créer une entrée dans ReportAll s'il n'existe pas déjà
+      for (const report of reports) {
+        await ReportAll.findOneAndUpdate(
+          {
+            type: report.type,
+            'location.coordinates': report.location.coordinates
+          },
+          {
+            type: report.type,
+            location: report.location,
+            upvotes: report.upvotes,
+            createdAt: report.createdAt
+          },
+          { upsert: true, new: true }
+        );
+      }
+
+      // Récupérer tous les reports de ReportAll
+      const allReports = await ReportAll.find().sort({ createdAt: -1 });
+      res.json(allReports);
+    } catch (error) {
+      console.error('Error getting all reports:', error);
+      res.status(500).json({ error: 'Failed to get all reports' });
     }
   }
 };
