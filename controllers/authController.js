@@ -333,79 +333,104 @@ const authController = {
 
   // Add new web-specific Google OAuth methods
   googleWebAuth: (req, res) => {
-    const redirectUri = `${process.env.API_URL}/api/auth/google/web/callback`;
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
-      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-      `response_type=code&` +
-      `scope=openid%20email%20profile`;
-
-    res.redirect(url);
-  },
-
-  googleWebCallback: async (req, res) => {
     try {
-      const code = req.query.code;
-      const redirectUri = `${process.env.API_URL}/auth/google/web/callback`;
+        const redirectUri = `${process.env.API_URL}/api/auth/google/web/callback`;
+        console.log('Using redirect URI:', redirectUri);
 
-      // Échange le code contre un token
-      const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
-        code,
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code'
-      });
+        const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
+            `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
+            `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+            `response_type=code&` +
+            `scope=openid%20email%20profile&` +
+            `access_type=offline&` +
+            `prompt=consent`;
 
-      // Récupérer les infos utilisateur avec l'access token
-      const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
-      });
+        console.log('Redirecting to:', url);
+        res.redirect(url);
+    } catch (error) {
+        console.error('Google web auth error:', error);
+        res.redirect(`${process.env.FRONTEND_URL}/login?error=Configuration error`);
+    }
+},
 
-      const userData = userInfoResponse.data;
-      console.log('Google user data (web):', userData);
+googleWebCallback: async (req, res) => {
+    try {
+        const { code } = req.query;
+        if (!code) {
+            throw new Error('No authorization code received');
+        }
 
-      let user = await User.findOne({ email: userData.email });
-      if (!user) {
-        user = await User.create({
-          email: userData.email,
-          name: userData.name,
-          googleId: userData.sub,
-          picture: userData.picture
+        const redirectUri = `${process.env.API_URL}/api/auth/google/web/callback`;
+        console.log('Callback received with code:', !!code);
+
+        // Échange le code contre un token
+        const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+            code,
+            client_id: process.env.GOOGLE_CLIENT_ID,
+            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+            redirect_uri: redirectUri,
+            grant_type: 'authorization_code'
         });
-      } else {
-        user.picture = userData.picture;
-        user.lastLogin = new Date();
-        await user.save();
-      }
 
-      // Générer le JWT avec la photo
-      const token = jwt.sign(
-        { 
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          picture: user.picture
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: '24h' }
-      );
+        const { access_token } = tokenResponse.data;
+        if (!access_token) {
+            throw new Error('No access token received');
+        }
 
-      // Rediriger vers l'application Web avec les données
-      // Utiliser une URL standard au lieu d'une URI app mobile
-      const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
-      res.redirect(`${frontendURL}/oauth-redirect?token=${token}&user=${encodeURIComponent(JSON.stringify({
-        name: user.name,
-        email: user.email,
-        picture: user.picture
-      }))}`);
+        // Récupérer les infos utilisateur
+        const userInfoResponse = await axios.get(
+            'https://www.googleapis.com/oauth2/v3/userinfo',
+            { headers: { Authorization: `Bearer ${access_token}` } }
+        );
+
+        const userData = userInfoResponse.data;
+        console.log('User data received:', {
+            email: userData.email,
+            name: userData.name
+        });
+
+        // Créer ou mettre à jour l'utilisateur
+        let user = await User.findOne({ email: userData.email });
+        if (!user) {
+            user = await User.create({
+                email: userData.email,
+                name: userData.name,
+                googleId: userData.sub,
+                picture: userData.picture
+            });
+        }
+
+        // Générer le JWT
+        const token = jwt.sign(
+            { 
+                id: user._id,
+                email: user.email,
+                name: user.name,
+                picture: user.picture
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Redirection vers le frontend
+        const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const redirectURL = `${frontendURL}/oauth-callback?` +
+            `token=${encodeURIComponent(token)}&` +
+            `user=${encodeURIComponent(JSON.stringify({
+                name: user.name,
+                email: user.email,
+                picture: user.picture
+            }))}`;
+
+        console.log('Redirecting to frontend:', redirectURL);
+        res.redirect(redirectURL);
 
     } catch (error) {
-      console.error('Google web auth callback error:', error);
-      const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
-      res.redirect(`${frontendURL}/login?error=Authentication failed`);
+        console.error('Google web callback error:', error);
+        const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
+        res.redirect(`${frontendURL}/login?error=${encodeURIComponent(error.message)}`);
     }
-  },
+},
 };
 
 module.exports = authController;
