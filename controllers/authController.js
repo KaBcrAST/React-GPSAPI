@@ -12,7 +12,7 @@ const authController = {
       const { name, email, password } = req.body;
 
       // Le mot de passe arrive déjà hashé en SHA256 du frontend
-      console.log('Registering new user:', email);
+      console.log('Received hashed password:', password);
 
       // Vérifier l'utilisateur existant
       const existingUser = await User.findOne({ email: email.toLowerCase() });
@@ -23,31 +23,23 @@ const authController = {
         });
       }
 
-      // Créer l'utilisateur
+      // Créer l'utilisateur avec le hash SHA256 directement
       const user = await User.create({
         name: name.trim(),
         email: email.toLowerCase().trim(),
-        password: password // Le password est déjà en SHA256
+        password: password // On stocke directement le hash SHA256
       });
 
-      // Générer le token JWT
       const token = jwt.sign(
-        { 
-          id: user._id,
-          name: user.name,
-          email: user.email
-        },
+        { id: user._id, name: user.name, email: user.email },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      // Retourner la réponse
       return res.status(201).json({
         success: true,
-        message: 'Inscription réussie',
         token,
         user: {
-          id: user._id,
           name: user.name,
           email: user.email
         }
@@ -57,8 +49,7 @@ const authController = {
       console.error('Register error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Erreur lors de l\'inscription',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        message: 'Erreur lors de l\'inscription'
       });
     }
   },
@@ -114,8 +105,7 @@ const authController = {
   },
 
   googleAuth: (req, res) => {
-    // Mettre à jour l'URL de redirection pour inclure /api
-    const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
+    const redirectUri = `${process.env.API_URL}/auth/google/callback`;
     const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
@@ -128,8 +118,7 @@ const authController = {
   googleAuthCallback: async (req, res) => {
     try {
       const code = req.query.code;
-      // Mettre à jour l'URL de redirection pour inclure /api
-      const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
+      const redirectUri = `${process.env.API_URL}/auth/google/callback`;
 
       // Échange le code contre un token
       const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
