@@ -3,7 +3,6 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
-const OAuthService = require('../services/oauthService');
 
 // Supprimez la configuration nodemailer si vous ne l'utilisez pas encore
 
@@ -125,58 +124,75 @@ const authController = {
   },
 
   googleAuth: (req, res) => {
-    try {
-      const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
-      const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
-        `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
-        `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-        `response_type=code&` +
-        `scope=openid%20email%20profile&` +
-        `access_type=offline&` +
-        `prompt=consent`;
+    // Mettre à jour l'URL de redirection pour inclure /api
+    const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+      `response_type=code&` +
+      `scope=openid%20email%20profile`;
 
-      console.log('Redirecting to Google OAuth:', redirectUri);
-      res.redirect(url);
-    } catch (error) {
-      console.error('Google auth error:', error);
-      res.redirect('gpsapp://auth/error');
-    }
+    res.redirect(url);
   },
 
   googleAuthCallback: async (req, res) => {
     try {
-      const { code } = req.query;
+      const code = req.query.code;
+      // Mettre à jour l'URL de redirection pour inclure /api
       const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
 
-      // Get tokens from Google
-      const tokens = await OAuthService.getGoogleTokens(code, redirectUri);
-      
-      // Get user info
-      const userData = await OAuthService.getGoogleUserInfo(tokens.access_token);
-      
-      // Find or create user
-      const user = await OAuthService.findOrCreateUser(userData);
-      
-      // Generate JWT
-      const token = OAuthService.generateToken(user);
+      // Échange le code contre un token
+      const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code'
+      });
 
-      // Prepare user data for client
-      const userDataForClient = {
+      // Récupérer les infos utilisateur avec l'access token
+      const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
+      });
+
+      const userData = userInfoResponse.data;
+      console.log('Google user data:', userData);
+
+      let user = await User.findOne({ email: userData.email });
+      if (!user) {
+        user = await User.create({
+          email: userData.email,
+          name: userData.name,
+          googleId: userData.sub,
+          picture: userData.picture
+        });
+      } else {
+        user.picture = userData.picture;
+        user.lastLogin = new Date();
+        await user.save();
+      }
+
+      // Générer le JWT avec la photo
+      const token = jwt.sign(
+        { 
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          picture: user.picture // Inclure la photo dans le token
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      // Rediriger vers l'app avec toutes les données
+      res.redirect(`gpsapp://auth?token=${token}&user=${encodeURIComponent(JSON.stringify({
         name: user.name,
         email: user.email,
         picture: user.picture
-      };
-
-      // Redirect to app with data
-      const appRedirectUrl = `gpsapp://auth?` +
-        `token=${encodeURIComponent(token)}&` +
-        `user=${encodeURIComponent(JSON.stringify(userDataForClient))}`;
-
-      console.log('Auth successful, redirecting to app');
-      res.redirect(appRedirectUrl);
+      }))}`);
 
     } catch (error) {
-      console.error('OAuth callback error:', error);
+      console.error('Google auth callback error:', error);
       res.redirect('gpsapp://auth/error');
     }
   },
