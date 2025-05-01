@@ -105,7 +105,8 @@ const authController = {
   },
 
   googleAuth: (req, res) => {
-    const redirectUri = `${process.env.API_URL}/auth/google/callback`;
+    // Mettre à jour l'URL de redirection pour inclure /api
+    const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
     const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
@@ -118,7 +119,8 @@ const authController = {
   googleAuthCallback: async (req, res) => {
     try {
       const code = req.query.code;
-      const redirectUri = `${process.env.API_URL}/auth/google/callback`;
+      // Mettre à jour l'URL de redirection pour inclure /api
+      const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
 
       // Échange le code contre un token
       const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
