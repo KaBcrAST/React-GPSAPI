@@ -9,10 +9,20 @@ const axios = require('axios');
 const authController = {
   register: async (req, res) => {
     try {
+      console.log('Register attempt received:', req.body);
       const { name, email, password } = req.body;
 
+      // Validation des données
+      if (!name || !email || !password) {
+        console.log('Missing required fields');
+        return res.status(400).json({
+          success: false,
+          message: 'Tous les champs sont requis'
+        });
+      }
+
       // Le mot de passe arrive déjà hashé en SHA256 du frontend
-      console.log('Received hashed password:', password);
+      console.log('Registering new user:', email);
 
       // Vérifier l'utilisateur existant
       const existingUser = await User.findOne({ email: email.toLowerCase() });
@@ -23,33 +33,42 @@ const authController = {
         });
       }
 
-      // Créer l'utilisateur avec le hash SHA256 directement
+      // Créer l'utilisateur
       const user = await User.create({
         name: name.trim(),
         email: email.toLowerCase().trim(),
-        password: password // On stocke directement le hash SHA256
+        password: password // Le password est déjà en SHA256
       });
 
+      // Générer le token JWT
       const token = jwt.sign(
-        { id: user._id, name: user.name, email: user.email },
+        { 
+          id: user._id,
+          name: user.name,
+          email: user.email
+        },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
+      // Retourner la réponse
       return res.status(201).json({
         success: true,
+        message: 'Inscription réussie',
         token,
         user: {
+          id: user._id,
           name: user.name,
           email: user.email
         }
       });
 
     } catch (error) {
-      console.error('Register error:', error);
+      console.error('Register error details:', error);
       return res.status(500).json({
         success: false,
-        message: 'Erreur lors de l\'inscription'
+        message: 'Erreur lors de l\'inscription',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   },
