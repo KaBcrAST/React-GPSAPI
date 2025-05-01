@@ -9,17 +9,12 @@ const axios = require('axios');
 const authController = {
   register: async (req, res) => {
     try {
-      const { name, email, password } = req.body;
-      
-      console.log('Register attempt:', { 
-        name, 
-        email, 
-        passwordLength: password?.length 
-      });
+      const { name, email, password } = req.sanitizedInputs;
 
-      // Vérifier si l'email existe
-      const existingUser = await User.findOne({ email })
-        .collation({ locale: 'fr', strength: 2 });
+      // Vérifier si l'email existe avec indexation
+      const existingUser = await User.findOne({ 
+        email: email 
+      }).collation({ locale: 'fr', strength: 2 });
       
       if (existingUser) {
         return res.status(400).json({
@@ -28,20 +23,38 @@ const authController = {
         });
       }
 
-      // Créer l'utilisateur
+      // Rate limiting par IP
+      const attempts = await loginAttempts.get(req.ip);
+      if (attempts > 5) {
+        return res.status(429).json({
+          success: false,
+          message: 'Trop de tentatives, réessayez plus tard'
+        });
+      }
+
+      // Créer l'utilisateur avec les données validées
       const user = await User.create({
         name,
         email,
         password,
+        lastLogin: new Date()
       });
 
-      console.log('User created:', user._id);
-
       const token = jwt.sign(
-        { id: user._id, email: user.email },
+        { 
+          id: user._id,
+          name: user.name,
+          email: user.email 
+        },
         process.env.JWT_SECRET,
-        { expiresIn: '24h' }
+        { 
+          expiresIn: '24h',
+          algorithm: 'HS256'
+        }
       );
+
+      // Nettoyer les tentatives après succès
+      await loginAttempts.del(req.ip);
 
       return res.status(201).json({
         success: true,
@@ -54,11 +67,10 @@ const authController = {
       });
 
     } catch (error) {
-      console.error('Register error details:', error);
-      return res.status(500).json({
+      console.error('Register error:', error);
+      res.status(500).json({
         success: false,
-        message: 'Erreur lors de l\'inscription',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        message: 'Erreur lors de l\'inscription'
       });
     }
   },
@@ -114,28 +126,24 @@ const authController = {
   },
 
   googleAuth: (req, res) => {
+    // Mettre à jour l'URL de redirection pour inclure /api
     const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
-    console.log('Google Auth Redirect URI:', redirectUri);
-
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
-      `scope=openid%20email%20profile&` +
-      `access_type=offline&` +
-      `prompt=consent`;
+      `scope=openid%20email%20profile`;
 
-    res.redirect(authUrl);
+    res.redirect(url);
   },
 
   googleAuthCallback: async (req, res) => {
     try {
-      const { code } = req.query;
-      console.log('Received code from Google:', code ? 'Yes' : 'No');
-
+      const code = req.query.code;
+      // Mettre à jour l'URL de redirection pour inclure /api
       const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
 
-      // Token exchange
+      // Échange le code contre un token
       const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID,
@@ -144,27 +152,15 @@ const authController = {
         grant_type: 'authorization_code'
       });
 
-      console.log('Token exchange successful');
-
-      // User info request
-      const { data: userData } = await axios.get(
-        'https://www.googleapis.com/oauth2/v3/userinfo',
-        {
-          headers: { 
-            Authorization: `Bearer ${tokenResponse.data.access_token}` 
-          }
-        }
-      );
-
-      console.log('User info retrieved:', {
-        email: userData.email,
-        name: userData.name,
-        picture: userData.picture ? 'Yes' : 'No'
+      // Récupérer les infos utilisateur avec l'access token
+      const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
       });
 
-      // Find or create user
+      const userData = userInfoResponse.data;
+      console.log('Google user data:', userData);
+
       let user = await User.findOne({ email: userData.email });
-      
       if (!user) {
         user = await User.create({
           email: userData.email,
@@ -172,42 +168,33 @@ const authController = {
           googleId: userData.sub,
           picture: userData.picture
         });
-        console.log('New user created');
       } else {
         user.picture = userData.picture;
         user.lastLogin = new Date();
         await user.save();
-        console.log('Existing user updated');
       }
 
+      // Générer le JWT avec la photo
       const token = jwt.sign(
         { 
           id: user._id,
           name: user.name,
           email: user.email,
-          picture: user.picture
+          picture: user.picture // Inclure la photo dans le token
         },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      // Redirect to app with data
-      const appRedirectUrl = `gpsapp://auth?` +
-        `token=${encodeURIComponent(token)}&` +
-        `user=${encodeURIComponent(JSON.stringify({
-          name: user.name,
-          email: user.email,
-          picture: user.picture
-        }))}`;
-
-      console.log('Redirecting to:', appRedirectUrl);
-      res.redirect(appRedirectUrl);
+      // Rediriger vers l'app avec toutes les données
+      res.redirect(`gpsapp://auth?token=${token}&user=${encodeURIComponent(JSON.stringify({
+        name: user.name,
+        email: user.email,
+        picture: user.picture
+      }))}`);
 
     } catch (error) {
-      console.error('Google auth error details:', {
-        message: error.message,
-        response: error.response?.data
-      });
+      console.error('Google auth callback error:', error);
       res.redirect('gpsapp://auth/error');
     }
   },
