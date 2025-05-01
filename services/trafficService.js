@@ -17,7 +17,7 @@ class TrafficService {
         trafficClusters: this.groupReportsByClusters(reports)
       };
     } catch (error) {
-      console.error('Traffic service error:', error);
+      console.error('Traffic service error :', error);
       return null;
     }
   }
