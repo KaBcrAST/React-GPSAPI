@@ -114,24 +114,28 @@ const authController = {
   },
 
   googleAuth: (req, res) => {
-    // Mettre à jour l'URL de redirection pour inclure /api
     const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    console.log('Google Auth Redirect URI:', redirectUri);
+
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
-      `scope=openid%20email%20profile`;
+      `scope=openid%20email%20profile&` +
+      `access_type=offline&` +
+      `prompt=consent`;
 
-    res.redirect(url);
+    res.redirect(authUrl);
   },
 
   googleAuthCallback: async (req, res) => {
     try {
-      const code = req.query.code;
-      // Mettre à jour l'URL de redirection pour inclure /api
+      const { code } = req.query;
+      console.log('Received code from Google:', code ? 'Yes' : 'No');
+
       const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
 
-      // Échange le code contre un token
+      // Token exchange
       const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID,
@@ -140,15 +144,27 @@ const authController = {
         grant_type: 'authorization_code'
       });
 
-      // Récupérer les infos utilisateur avec l'access token
-      const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
+      console.log('Token exchange successful');
+
+      // User info request
+      const { data: userData } = await axios.get(
+        'https://www.googleapis.com/oauth2/v3/userinfo',
+        {
+          headers: { 
+            Authorization: `Bearer ${tokenResponse.data.access_token}` 
+          }
+        }
+      );
+
+      console.log('User info retrieved:', {
+        email: userData.email,
+        name: userData.name,
+        picture: userData.picture ? 'Yes' : 'No'
       });
 
-      const userData = userInfoResponse.data;
-      console.log('Google user data:', userData);
-
+      // Find or create user
       let user = await User.findOne({ email: userData.email });
+      
       if (!user) {
         user = await User.create({
           email: userData.email,
@@ -156,33 +172,42 @@ const authController = {
           googleId: userData.sub,
           picture: userData.picture
         });
+        console.log('New user created');
       } else {
         user.picture = userData.picture;
         user.lastLogin = new Date();
         await user.save();
+        console.log('Existing user updated');
       }
 
-      // Générer le JWT avec la photo
       const token = jwt.sign(
         { 
           id: user._id,
           name: user.name,
           email: user.email,
-          picture: user.picture // Inclure la photo dans le token
+          picture: user.picture
         },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      // Rediriger vers l'app avec toutes les données
-      res.redirect(`gpsapp://auth?token=${token}&user=${encodeURIComponent(JSON.stringify({
-        name: user.name,
-        email: user.email,
-        picture: user.picture
-      }))}`);
+      // Redirect to app with data
+      const appRedirectUrl = `gpsapp://auth?` +
+        `token=${encodeURIComponent(token)}&` +
+        `user=${encodeURIComponent(JSON.stringify({
+          name: user.name,
+          email: user.email,
+          picture: user.picture
+        }))}`;
+
+      console.log('Redirecting to:', appRedirectUrl);
+      res.redirect(appRedirectUrl);
 
     } catch (error) {
-      console.error('Google auth callback error:', error);
+      console.error('Google auth error details:', {
+        message: error.message,
+        response: error.response?.data
+      });
       res.redirect('gpsapp://auth/error');
     }
   },
