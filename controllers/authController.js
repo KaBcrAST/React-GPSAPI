@@ -333,7 +333,7 @@ const authController = {
 
   // Add new web-specific Google OAuth methods
   googleWebAuth: (req, res) => {
-    const redirectUri = `${process.env.API_URL}/auth/google/web/callback`;
+    const redirectUri = `${process.env.API_URL}/api/auth/google/web/callback`;
     const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
