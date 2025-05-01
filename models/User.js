@@ -31,12 +31,14 @@ const UserSchema = new Schema({
   password: {
     type: String,
     required: [true, 'Mot de passe requis'],
-    validate: {
-      validator: function(v) {
-        return /^[a-f0-9]{64}$/.test(v);
-      },
-      message: 'Format de hash SHA256 invalide'
-    }
+    minlength: [8, 'Le mot de passe doit contenir au moins 8 caractères'],
+    // Retirons temporairement la validation du hash
+    // validate: {
+    //   validator: function(v) {
+    //     return /^[a-f0-9]{64}$/.test(v);
+    //   },
+    //   message: 'Format de hash SHA256 invalide'
+    // }
   },
   lastLogin: {
     type: Date,
