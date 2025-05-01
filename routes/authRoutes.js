@@ -10,7 +10,7 @@ router.post('/login', validateAuth, authController.login);
 
 // Keep existing OAuth routes for mobile app
 router.get('/google', authController.googleAuth);
-router.get('/google/callback', authController.googleAuthCallback, authController.authSuccess);
+router.get('/google/callback', authController.googleAuthCallback);
 router.get('/google/failure', authController.authFailure);
 
 // Add new web-specific OAuth routes
