@@ -1,30 +1,52 @@
 const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-const userSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true,
-    lowercase: true
-  },
+const UserSchema = new Schema({
   name: {
     type: String,
-    required: true,
-    trim: true
+    required: [true, 'Le nom est requis'],
+    trim: true,
+    minlength: [2, 'Nom trop court'],
+    maxlength: [50, 'Nom trop long'],
+    validate: {
+      validator: function(v) {
+        return /^[a-zA-ZÀ-ÿ\s-]+$/.test(v);
+      },
+      message: 'Le nom contient des caractères invalides'
+    }
+  },
+  email: {
+    type: String,
+    required: [true, 'Email requis'],
+    unique: true,
+    lowercase: true,
+    trim: true,
+    validate: {
+      validator: function(v) {
+        return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(v);
+      },
+      message: 'Format d\'email invalide'
+    }
   },
   password: {
     type: String,
-    required: function() {
-      return !this.googleId;
+    required: [true, 'Mot de passe requis'],
+    validate: {
+      validator: function(v) {
+        return /^[a-f0-9]{64}$/.test(v);
+      },
+      message: 'Format de hash SHA256 invalide'
     }
   },
-  googleId: String,
-  picture: String,
   lastLogin: {
     type: Date,
     default: Date.now
   }
-}, { timestamps: true });
+}, {
+  timestamps: true
+});
 
-module.exports = mongoose.model('User', userSchema);
+// Index pour optimiser les recherches
+UserSchema.index({ email: 1 }, { unique: true });
+
+module.exports = mongoose.model('User', UserSchema);

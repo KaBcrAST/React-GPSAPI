@@ -9,23 +9,13 @@ const axios = require('axios');
 const authController = {
   register: async (req, res) => {
     try {
-      console.log('Register attempt received:', req.body);
-      const { name, email, password } = req.body;
+      const { name, email, password } = req.sanitizedInputs;
 
-      // Validation des données
-      if (!name || !email || !password) {
-        console.log('Missing required fields');
-        return res.status(400).json({
-          success: false,
-          message: 'Tous les champs sont requis'
-        });
-      }
-
-      // Le mot de passe arrive déjà hashé en SHA256 du frontend
-      console.log('Registering new user:', email);
-
-      // Vérifier l'utilisateur existant
-      const existingUser = await User.findOne({ email: email.toLowerCase() });
+      // Vérifier si l'email existe avec indexation
+      const existingUser = await User.findOne({ 
+        email: email 
+      }).collation({ locale: 'fr', strength: 2 });
+      
       if (existingUser) {
         return res.status(400).json({
           success: false,
@@ -33,28 +23,41 @@ const authController = {
         });
       }
 
-      // Créer l'utilisateur
+      // Rate limiting par IP
+      const attempts = await loginAttempts.get(req.ip);
+      if (attempts > 5) {
+        return res.status(429).json({
+          success: false,
+          message: 'Trop de tentatives, réessayez plus tard'
+        });
+      }
+
+      // Créer l'utilisateur avec les données validées
       const user = await User.create({
-        name: name.trim(),
-        email: email.toLowerCase().trim(),
-        password: password // Le password est déjà en SHA256
+        name,
+        email,
+        password,
+        lastLogin: new Date()
       });
 
-      // Générer le token JWT
       const token = jwt.sign(
         { 
           id: user._id,
           name: user.name,
-          email: user.email
+          email: user.email 
         },
         process.env.JWT_SECRET,
-        { expiresIn: '24h' }
+        { 
+          expiresIn: '24h',
+          algorithm: 'HS256'
+        }
       );
 
-      // Retourner la réponse
+      // Nettoyer les tentatives après succès
+      await loginAttempts.del(req.ip);
+
       return res.status(201).json({
         success: true,
-        message: 'Inscription réussie',
         token,
         user: {
           id: user._id,
@@ -64,11 +67,10 @@ const authController = {
       });
 
     } catch (error) {
-      console.error('Register error details:', error);
-      return res.status(500).json({
+      console.error('Register error:', error);
+      res.status(500).json({
         success: false,
-        message: 'Erreur lors de l\'inscription',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        message: 'Erreur lors de l\'inscription'
       });
     }
   },
