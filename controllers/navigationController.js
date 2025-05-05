@@ -195,20 +195,46 @@ const navigationController = {
 
       const routes = response.data.routes.map((route, index) => {
         const leg = route.legs[0];
+        
+        // Extraire les coordonnées détaillées de chaque étape pour une meilleure précision
+        let detailedCoordinates = [];
+        leg.steps.forEach(step => {
+          const stepCoords = decodePolyline(step.polyline.points);
+          
+          // Éviter les points dupliqués entre les étapes
+          if (detailedCoordinates.length > 0 && stepCoords.length > 0 && 
+              detailedCoordinates[detailedCoordinates.length - 1].latitude === stepCoords[0].latitude &&
+              detailedCoordinates[detailedCoordinates.length - 1].longitude === stepCoords[0].longitude) {
+            detailedCoordinates = [...detailedCoordinates, ...stepCoords.slice(1)];
+          } else {
+            detailedCoordinates = [...detailedCoordinates, ...stepCoords];
+          }
+        });
+        
+        // Extraire également les instructions de navigation pour chaque étape
+        const steps = leg.steps.map(step => ({
+          distance: step.distance,
+          duration: step.duration,
+          instructions: step.html_instructions,
+          maneuver: step.maneuver || null,
+          start_location: step.start_location,
+          end_location: step.end_location
+        }));
+
         return {
           index,
-          coordinates: decodePolyline(route.overview_polyline.points),
-          distance: leg.distance.text, // Utiliser directement .text
-          duration: leg.duration.text, // Utiliser directement .text
+          coordinates: detailedCoordinates, // Utiliser les coordonnées détaillées au lieu de overview_polyline
+          distance: leg.distance.text,
+          duration: leg.duration.text,
           summary: route.summary || `Route ${index + 1}`,
           hasTolls: route.warnings?.some(w => w.toLowerCase().includes('toll')) || false,
-          // Garder les valeurs numériques pour les calculs si nécessaire
           distanceValue: leg.distance.value,
-          durationValue: leg.duration.value
+          durationValue: leg.duration.value,
+          steps: steps // Ajouter les étapes détaillées
         };
       });
 
-      console.log(`✅ Found ${routes.length} preview routes`);
+      console.log(`✅ Found ${routes.length} preview routes with enhanced precision`);
       res.json({ routes });
 
     } catch (error) {
