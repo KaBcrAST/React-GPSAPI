@@ -16,7 +16,6 @@ const navigationRoutes = require('./routes/navigationRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const connectDB = require('./config/database');
 const trafficRoutes = require('./routes/trafficRoutes');
-const historyRoutes = require('./routes/historyRoutes');
 
 const app = express();
 connectDB();
