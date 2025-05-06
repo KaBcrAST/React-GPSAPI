@@ -5,7 +5,6 @@ const passport = require('./config/passport');
 const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
 const { isAuthenticated } = require('./middlewares/middlewares');
-const directionsRoutes = require('./routes/directionsRoutes');
 const { generateQRCode } = require('./controllers/qrController');
 const qrCodeRoutes = require('./routes/qrRoutes');
 const searchRoutes = require('./routes/searchRoutes');
