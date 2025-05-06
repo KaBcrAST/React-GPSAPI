@@ -71,7 +71,6 @@ app.use((req, res, next) => {
 
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/gps', gpsRoutes);
-app.use('/api', directionsRoutes);
 app.use('/api', qrCodeRoutes);
 app.use('/api/map', mapRoutes);
 app.use('/api/search', searchRoutes);
