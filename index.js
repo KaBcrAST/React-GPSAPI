@@ -9,7 +9,6 @@ const { isAuthenticated } = require('./middlewares/middlewares');
 const directionsRoutes = require('./routes/directionsRoutes');
 const { generateQRCode } = require('./controllers/qrController');
 const qrCodeRoutes = require('./routes/qrRoutes');
-const mapRoutes = require('./routes/mapRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const speedLimitRoutes = require('./routes/speedLimitRoutes');
 const navigationRoutes = require('./routes/navigationRoutes');
@@ -71,7 +70,6 @@ app.use((req, res, next) => {
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/gps', gpsRoutes);
 app.use('/api', qrCodeRoutes);
-app.use('/api/map', mapRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api', speedLimitRoutes);
 app.use('/api', navigationRoutes);
