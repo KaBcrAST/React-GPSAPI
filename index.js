@@ -4,7 +4,6 @@ const session = require('express-session');
 const passport = require('./config/passport');
 const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
-const gpsRoutes = require('./routes/gpsRoutes');
 const { isAuthenticated } = require('./middlewares/middlewares');
 const directionsRoutes = require('./routes/directionsRoutes');
 const { generateQRCode } = require('./controllers/qrController');
@@ -68,7 +67,6 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/gps', gpsRoutes);
 app.use('/api', qrCodeRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api', speedLimitRoutes);
