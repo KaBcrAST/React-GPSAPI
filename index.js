@@ -79,7 +79,6 @@ app.use('/api', navigationRoutes);
 app.use('/api', reportRoutes);
 app.use('/api/traffic', trafficRoutes);
 app.use('/api/navigation', navigationRoutes);
-app.use('/history', historyRoutes);
 
 console.log('Map routes registered');
 
