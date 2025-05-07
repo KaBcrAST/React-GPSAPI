@@ -233,6 +233,10 @@ const navigationController = {
         
         // Extraire les coordonnées détaillées de chaque étape pour une meilleure précision
         let detailedCoordinates = [];
+        
+        // Collecter les incidents de trafic
+        const incidents = [];
+        
         leg.steps.forEach(step => {
           const stepCoords = decodePolyline(step.polyline.points);
           
@@ -243,6 +247,24 @@ const navigationController = {
             detailedCoordinates = [...detailedCoordinates, ...stepCoords.slice(1)];
           } else {
             detailedCoordinates = [...detailedCoordinates, ...stepCoords];
+          }
+          
+          // Détecter les ralentissements sur ce segment
+          if (step.duration_in_traffic && step.duration_in_traffic.value > step.duration.value * 1.2) {
+            const severity = calculateTrafficSeverity(step.duration.value, step.duration_in_traffic.value);
+            const extraTimeMinutes = Math.round((step.duration_in_traffic.value - step.duration.value) / 60);
+            
+            // Prendre un point au milieu du segment pour placer l'icône
+            const middlePoint = stepCoords[Math.floor(stepCoords.length / 2)] || stepCoords[0];
+            
+            incidents.push({
+              type: 'traffic_jam',
+              severity: severity,
+              location: middlePoint,
+              description: `+${extraTimeMinutes} min`,
+              // Ajouter le segment complet pour pouvoir le mettre en évidence
+              segment: stepCoords
+            });
           }
         });
         
@@ -278,7 +300,7 @@ const navigationController = {
 
         return {
           index,
-          coordinates: detailedCoordinates, // Utiliser les coordonnées détaillées au lieu de overview_polyline
+          coordinates: detailedCoordinates,
           distance: leg.distance,
           duration: leg.duration,
           durationWithTraffic: leg.duration_in_traffic || leg.duration,
@@ -286,12 +308,13 @@ const navigationController = {
           hasTolls: route.warnings?.some(w => w.toLowerCase().includes('toll')) || false,
           distanceValue: leg.distance.value,
           durationValue: leg.duration.value,
-          steps: steps, // Ajouter les étapes détaillées
-          // Ajouter les infos de ralentissement
+          steps: steps,
           traffic: {
             hasSlowdowns: slowdownInfo.exists,
             slowdownDuration: slowdownInfo.duration
-          }
+          },
+          // Ajouter les incidents détectés
+          incidents: incidents
         };
       });
 
@@ -390,8 +413,84 @@ const navigationController = {
       console.error('❌ Error calculating route:', error);
       res.status(500).json({ error: 'Failed to calculate route' });
     }
+  },
+
+  // Ajoutez cette nouvelle méthode au contrôleur
+  getTrafficIncidents: async (req, res) => {
+    try {
+      const { origin, destination } = req.query;
+
+      if (!origin || !destination) {
+        return res.status(400).json({ error: 'Origin and destination are required' });
+      }
+
+      console.log('🚦 Fetching traffic incidents:', { origin, destination });
+      
+      const params = {
+        origin,
+        destination,
+        mode: 'driving',
+        language: 'fr',
+        region: 'fr',
+        departure_time: 'now',
+        traffic_model: 'best_guess',
+        key: process.env.GOOGLE_MAPS_API_KEY
+      };
+
+      const response = await axios.get(
+        'https://maps.googleapis.com/maps/api/directions/json',
+        { params }
+      );
+
+      if (!response.data.routes || response.data.status !== 'OK') {
+        return res.status(404).json({ error: 'No routes found', googleStatus: response.data.status });
+      }
+
+      // Collecter les incidents de trafic
+      const incidents = [];
+      
+      // Parcourir chaque segment de la route principale
+      response.data.routes[0].legs.forEach(leg => {
+        leg.steps.forEach(step => {
+          // Vérifier si ce segment a des ralentissements significatifs
+          const hasTrafficInfo = step.duration_in_traffic && step.duration.value;
+          
+          if (hasTrafficInfo && step.duration_in_traffic.value > step.duration.value * 1.2) { // >20% de ralentissement
+            const severity = calculateTrafficSeverity(step.duration.value, step.duration_in_traffic.value);
+            const coords = decodePolyline(step.polyline.points);
+            
+            // Placer un marqueur au milieu du segment ralenti
+            const middlePoint = coords[Math.floor(coords.length / 2)] || coords[0];
+            
+            incidents.push({
+              type: 'traffic_jam',
+              severity: severity,
+              location: middlePoint,
+              polyline: step.polyline.points,
+              description: `+${Math.round((step.duration_in_traffic.value - step.duration.value) / 60)} min`
+            });
+          }
+        });
+      });
+
+      console.log(`✅ Found ${incidents.length} traffic incidents`);
+      res.json({ incidents });
+    } catch (error) {
+      console.error('❌ Error fetching traffic incidents:', error);
+      res.status(500).json({ error: 'Failed to fetch traffic incidents' });
+    }
   }
 };
+
+// Ajoutez cette fonction d'aide pour déterminer la sévérité du trafic
+function calculateTrafficSeverity(normalDuration, trafficDuration) {
+  const ratio = trafficDuration / normalDuration;
+  
+  if (ratio >= 2.0) return 'severe';    // Double du temps normal ou plus
+  if (ratio >= 1.5) return 'high';      // 50% de temps en plus
+  if (ratio >= 1.2) return 'moderate';  // 20% de temps en plus
+  return 'low';                         // Ralentissement mineur
+}
 
 // Fonction utilitaire pour décoder les polylines
 function decodePolyline(encoded) {
