@@ -13,6 +13,15 @@ const reportController = {
         });
       }
 
+      // Vérifier que le type est valide selon l'énumération
+      const validTypes = ['ACCIDENT', 'TRAFFIC_JAM', 'ROAD_CLOSED', 'POLICE', 'OBSTACLE'];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({
+          error: `Invalid report type. Must be one of: ${validTypes.join(', ')}`
+        });
+      }
+
+      // Créer le rapport temporaire
       const report = new Report({
         type,
         location: {
@@ -23,7 +32,29 @@ const reportController = {
 
       await report.save();
 
-      res.status(201).json(report);
+      // Créer ou mettre à jour le rapport dans ReportAll
+      await ReportAll.findOneAndUpdate(
+        {
+          type,
+          'location.coordinates': [longitude, latitude]
+        },
+        {
+          type,
+          location: {
+            type: 'Point',
+            coordinates: [longitude, latitude]
+          },
+          $inc: { count: 1 }, // Incrémenter le compteur si le rapport existe déjà
+          $setOnInsert: { createdAt: new Date() } // Définir la date de création uniquement si nouveau
+        },
+        { upsert: true, new: true }
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Report created successfully',
+        data: report
+      });
     } catch (error) {
       console.error('Error creating report:', error);
       res.status(500).json({ error: 'Failed to create report' });
@@ -112,17 +143,30 @@ const reportController = {
     try {
       const { reportId } = req.params;
       
-      const report = await Report.findByIdAndUpdate(
+      // Récupérer le rapport avant mise à jour pour obtenir ses coordonnées
+      const report = await Report.findById(reportId);
+      
+      if (!report) {
+        return res.status(404).json({ error: 'Report not found' });
+      }
+      
+      // Mettre à jour le rapport temporaire
+      const updatedReport = await Report.findByIdAndUpdate(
         reportId,
         { $inc: { upvotes: 1 } },
         { new: true }
       );
+      
+      // Mettre également à jour le rapport dans ReportAll
+      await ReportAll.findOneAndUpdate(
+        {
+          type: report.type,
+          'location.coordinates': report.location.coordinates
+        },
+        { $inc: { upvotes: 1 } }
+      );
 
-      if (!report) {
-        return res.status(404).json({ error: 'Report not found' });
-      }
-
-      res.json(report);
+      res.json(updatedReport);
     } catch (error) {
       console.error('Error upvoting report:', error);
       res.status(500).json({ error: 'Failed to upvote report' });
@@ -234,36 +278,58 @@ const reportController = {
 
   getAllReports: async (req, res) => {
     try {
-      // Dupliquer le report dans ReportAll
-      const reports = await Report.find();
-      
-      // Pour chaque report, créer une entrée dans ReportAll s'il n'existe pas déjà
-      for (const report of reports) {
-        await ReportAll.findOneAndUpdate(
-          {
-            type: report.type,
-            'location.coordinates': report.location.coordinates
-          },
-          {
-            type: report.type,
-            location: report.location,
-            upvotes: report.upvotes,
-            createdAt: report.createdAt
-          },
-          { upsert: true, new: true }
-        );
-      }
-
-      // Récupérer tous les reports de ReportAll
+      // Récupérer tous les reports de ReportAll, triés par date (les plus récents d'abord)
       const allReports = await ReportAll.find().sort({ createdAt: -1 });
-      res.json(allReports);
+      
+      res.json({
+        success: true,
+        count: allReports.length,
+        data: allReports
+      });
     } catch (error) {
       console.error('Error getting all reports:', error);
       res.status(500).json({ error: 'Failed to get all reports' });
     }
+  },
+  
+  // Nouvelle méthode pour récupérer des statistiques sur les rapports
+  getReportStats: async (req, res) => {
+    try {
+      const stats = await ReportAll.aggregate([
+        {
+          $group: {
+            _id: "$type",
+            count: { $sum: 1 },
+            avgUpvotes: { $avg: "$upvotes" },
+            latest: { $max: "$createdAt" }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            type: "$_id",
+            count: 1,
+            avgUpvotes: { $round: ["$avgUpvotes", 1] },
+            latestReport: "$latest"
+          }
+        },
+        {
+          $sort: { count: -1 }
+        }
+      ]);
+      
+      res.json({
+        success: true,
+        data: stats
+      });
+    } catch (error) {
+      console.error('Error getting report stats:', error);
+      res.status(500).json({ error: 'Failed to get report statistics' });
+    }
   }
 };
 
+// Nettoyer les anciens rapports toutes les minutes
 setInterval(reportController.cleanupOldReports, 60 * 1000);
 
 module.exports = reportController;
