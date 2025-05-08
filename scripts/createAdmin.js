@@ -16,7 +16,7 @@ mongoose.connect(process.env.MONGODB_URI, {
     const adminExists = await User.findOne({ role: 'admin' });
     
     if (adminExists) {
-      console.log('Un administrateur existe déjà dans la base de données');
+      console.log('Un administrateur existe déjà dans la base de données ');
       process.exit(0);
     }
     
