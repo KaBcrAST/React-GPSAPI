@@ -21,6 +21,11 @@ const userSchema = new mongoose.Schema({
   },
   googleId: String,
   picture: String,
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
+  },
   lastLogin: {
     type: Date,
     default: Date.now
