@@ -19,6 +19,7 @@ const authController = {
         });
       }
 
+      // Le mot de passe arrive déjà hashé en SHA256 du frontend
       console.log('Registering new user:', email);
 
       // Vérifier l'utilisateur existant
@@ -35,7 +36,7 @@ const authController = {
         name: name.trim(),
         email: email.toLowerCase().trim(),
         password: password, // Le password est déjà en SHA256
-        role: 'user'  // Assurer que le nouveau utilisateur a le rôle 'user'
+        role: 'user' // Assurer que le nouveau utilisateur a le rôle 'user'
       });
 
       // Générer le token JWT
@@ -44,7 +45,7 @@ const authController = {
           id: user._id,
           name: user.name,
           email: user.email,
-          role: user.role  // Inclure le rôle dans le token
+          role: user.role // Inclure le rôle dans le token
         },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
@@ -77,60 +78,78 @@ const authController = {
     try {
       const { email, password } = req.body;
       
-      console.log('Login attempt - received hash:', password);
+      console.log('Login attempt received');
 
+      // Trouver l'utilisateur
       const user = await User.findOne({ email: email.toLowerCase() });
       if (!user) {
-        return res.status(400).json({
+        return res.status(400).json({ 
           success: false,
-          message: 'Email ou mot de passe incorrect'
+          message: 'Identifiants incorrects' 
+        });
+      }
+      
+      // Si c'est un compte Google, refuser la connexion par mot de passe
+      if (user.googleId && !user.password) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Veuillez vous connecter avec Google' 
         });
       }
 
-      // Comparaison directe des hash SHA256
-      const passwordMatch = password === user.password;
-      console.log('Stored hash:', user.password);
-      console.log('Hash comparison result:', passwordMatch);
+      // Utiliser soit bcrypt.compare soit la comparaison directe selon comment le mot de passe est stocké
+      let passwordMatch;
+
+      if (user.password.length === 64) {
+        // Si le mot de passe stocké est un hachage SHA-256 (64 caractères)
+        passwordMatch = password === user.password;
+        console.log('Comparing password with SHA-256 hash');
+      } else {
+        // Sinon, utiliser bcrypt
+        passwordMatch = await bcrypt.compare(password, user.password);
+        console.log('Comparing password with bcrypt');
+      }
 
       if (!passwordMatch) {
-        return res.status(400).json({
+        return res.status(400).json({ 
           success: false,
-          message: 'Email ou mot de passe incorrect'
+          message: 'Identifiants incorrects' 
         });
       }
 
       // Mettre à jour la date de dernière connexion
-      user.lastLogin = new Date();
+      user.lastLogin = Date.now();
       await user.save();
-
+      
+      // Générer le token en incluant le rôle
       const token = jwt.sign(
         { 
           id: user._id, 
           name: user.name, 
-          email: user.email,
-          role: user.role  // Inclure le rôle dans le token
-        },
-        process.env.JWT_SECRET,
+          email: user.email, 
+          role: user.role 
+        }, 
+        process.env.JWT_SECRET, 
         { expiresIn: '24h' }
       );
-
-      return res.json({
+      
+      // Renvoyer le token et les informations de l'utilisateur
+      res.json({
         success: true,
         token,
         user: {
           id: user._id,
-          name: user.name,
           email: user.email,
+          name: user.name,
           role: user.role,
           picture: user.picture
         }
       });
-
     } catch (error) {
       console.error('Login error:', error);
-      return res.status(500).json({
+      res.status(500).json({ 
         success: false,
-        message: 'Erreur lors de la connexion'
+        message: 'Erreur du serveur' 
       });
     }
   },
@@ -291,7 +310,6 @@ const authController = {
 
       // Rediriger vers l'app avec toutes les données
       res.redirect(`gpsapp://auth?token=${token}&user=${encodeURIComponent(JSON.stringify({
-        id: user._id,
         name: user.name,
         email: user.email,
         picture: user.picture,
@@ -302,6 +320,104 @@ const authController = {
       console.error('Google auth callback error:', error);
       res.redirect('gpsapp://auth/error');
     }
+  },
+
+  mobileGoogleAuth: async (req, res) => {
+    try {
+      const { email, name, picture } = req.body;
+      
+      // Find or create user
+      let user = await User.findOne({ email });
+      
+      if (!user) {
+        user = await User.create({
+          email,
+          name,
+          picture,
+          googleId: email, // Using email as googleId since we don't get it from mobile
+          role: 'user'     // Définir le rôle par défaut
+        });
+      }
+
+      const token = jwt.sign(
+        { 
+          id: user._id, // Include the MongoDB _id
+          email: user.email,
+          name: user.name,
+          role: user.role
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      res.json({
+        success: true,
+        token,
+        user: {
+          id: user._id, // Include the MongoDB _id
+          email: user.email,
+          name: user.name,
+          picture: user.picture,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error('Mobile Google auth error:', error);
+      res.status(500).json({ success: false, message: 'Server error' });
+    }
+  },
+
+  authSuccess: (req, res) => {
+    try {
+      // Generate JWT token with user info
+      const token = jwt.sign(
+        { 
+          id: req.user._id,
+          name: req.user.displayName, 
+          email: req.user.email,
+          role: req.user.role || 'user'
+        }, 
+        process.env.JWT_SECRET, 
+        { expiresIn: '24h' }
+      );
+
+      // Return JSON response instead of redirect
+      res.json({ 
+        success: true,
+        token,
+        user: {
+          name: req.user.displayName,
+          email: req.user.email,
+          role: req.user.role || 'user'
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: 'Authentication failed' 
+      });
+    }
+  },
+
+  // IMPORTANT: Ajouter la méthode manquante qui causait l'erreur
+  authFailure: (req, res) => {
+    res.status(401).json({ 
+      success: false, 
+      message: 'Google authentication failed' 
+    });
+  },
+
+  logout: (req, res) => {
+    if (req.logout) {
+      req.logout();
+    }
+    if (req.session) {
+      req.session.destroy();
+    }
+    res.json({
+      success: true,
+      message: 'Déconnexion réussie'
+    });
   },
 
   // Autres méthodes existantes...
