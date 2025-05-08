@@ -1,24 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const authMiddleware = require('../middleware/auth');
-const isAdminMiddleware = require('../middleware/isAdmin');
+const authMiddleware = require('../middleware/auth'); 
+const isAdmin = require('../middleware/isAdmin');
 
-// Protéger toutes les routes admin avec auth ET isAdmin
+// Toutes les routes admin nécessitent l'authentification et des droits admin
 router.use(authMiddleware);
-router.use(isAdminMiddleware);
+router.use(isAdmin);
 
-// Routes pour la gestion des utilisateurs
+// Routes de gestion des utilisateurs
+router.get('/users', authController.getAllUsers);
 router.post('/users/:userId/promote', authController.promoteToAdmin);
 router.post('/users/:userId/demote', authController.demoteToUser);
-router.get('/users', async (req, res) => {
-  try {
-    const users = await User.find().select('-password');
-    res.json(users);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Erreur du serveur' });
-  }
-});
 
 module.exports = router;

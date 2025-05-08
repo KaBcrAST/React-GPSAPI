@@ -1,11 +1,8 @@
 const passport = require('passport');
-
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
-
-// Supprimez la configuration nodemailer si vous ne l'utilisez pas encore
 
 const authController = {
   register: async (req, res) => {
@@ -22,7 +19,6 @@ const authController = {
         });
       }
 
-      // Le mot de passe arrive déjà hashé en SHA256 du frontend
       console.log('Registering new user:', email);
 
       // Vérifier l'utilisateur existant
@@ -38,7 +34,8 @@ const authController = {
       const user = await User.create({
         name: name.trim(),
         email: email.toLowerCase().trim(),
-        password: password // Le password est déjà en SHA256
+        password: password, // Le password est déjà en SHA256
+        role: 'user'  // Assurer que le nouveau utilisateur a le rôle 'user'
       });
 
       // Générer le token JWT
@@ -46,7 +43,8 @@ const authController = {
         { 
           id: user._id,
           name: user.name,
-          email: user.email
+          email: user.email,
+          role: user.role  // Inclure le rôle dans le token
         },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
@@ -60,7 +58,8 @@ const authController = {
         user: {
           id: user._id,
           name: user.name,
-          email: user.email
+          email: user.email,
+          role: user.role
         }
       });
 
@@ -78,50 +77,155 @@ const authController = {
     try {
       const { email, password } = req.body;
       
-      // Trouver l'utilisateur
-      const user = await User.findOne({ email });
+      console.log('Login attempt - received hash:', password);
+
+      const user = await User.findOne({ email: email.toLowerCase() });
       if (!user) {
-        return res.status(400).json({ message: 'Identifiants incorrects' });
+        return res.status(400).json({
+          success: false,
+          message: 'Email ou mot de passe incorrect'
+        });
       }
-      
-      // Vérifier le mot de passe
-      const isMatch = await bcrypt.compare(password, user.password);
-      if (!isMatch) {
-        return res.status(400).json({ message: 'Identifiants incorrects' });
+
+      // Comparaison directe des hash SHA256
+      const passwordMatch = password === user.password;
+      console.log('Stored hash:', user.password);
+      console.log('Hash comparison result:', passwordMatch);
+
+      if (!passwordMatch) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email ou mot de passe incorrect'
+        });
       }
-      
-      // Générer le token en incluant le rôle
+
+      // Mettre à jour la date de dernière connexion
+      user.lastLogin = new Date();
+      await user.save();
+
       const token = jwt.sign(
         { 
-          userId: user._id, 
-          email: user.email, 
-          role: user.role 
-        }, 
-        process.env.JWT_SECRET, 
+          id: user._id, 
+          name: user.name, 
+          email: user.email,
+          role: user.role  // Inclure le rôle dans le token
+        },
+        process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
-      
-      // Mettre à jour la date de dernière connexion
-      user.lastLogin = Date.now();
-      await user.save();
-      
-      // Renvoyer le token et les informations de l'utilisateur
-      res.json({
+
+      return res.json({
+        success: true,
         token,
         user: {
           id: user._id,
-          email: user.email,
           name: user.name,
+          email: user.email,
           role: user.role,
           picture: user.picture
         }
       });
+
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Erreur du serveur' });
+      console.error('Login error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la connexion'
+      });
     }
   },
 
+  // Méthode pour promouvoir un utilisateur en administrateur
+  promoteToAdmin: async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      // Vérifier que l'utilisateur à modifier existe
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Utilisateur non trouvé'
+        });
+      }
+      
+      // Promouvoir l'utilisateur
+      user.role = 'admin';
+      await user.save();
+      
+      res.json({
+        success: true,
+        message: 'Utilisateur promu administrateur avec succès',
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error('Promote to admin error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la promotion de l\'utilisateur'
+      });
+    }
+  },
+
+  // Méthode pour rétrograder un administrateur
+  demoteToUser: async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Utilisateur non trouvé'
+        });
+      }
+      
+      user.role = 'user';
+      await user.save();
+      
+      res.json({
+        success: true,
+        message: 'Administrateur rétrogradé avec succès',
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error('Demote to user error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la rétrogradation de l\'administrateur'
+      });
+    }
+  },
+
+  // Liste tous les utilisateurs (pour l'admin)
+  getAllUsers: async (req, res) => {
+    try {
+      const users = await User.find().select('-password');
+      
+      res.json({
+        success: true,
+        users
+      });
+    } catch (error) {
+      console.error('Get all users error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur lors de la récupération des utilisateurs'
+      });
+    }
+  },
+
+  // Méthodes de OAuth existantes
   googleAuth: (req, res) => {
     // Mettre à jour l'URL de redirection pour inclure /api
     const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
@@ -163,7 +267,8 @@ const authController = {
           email: userData.email,
           name: userData.name,
           googleId: userData.sub,
-          picture: userData.picture
+          picture: userData.picture,
+          role: 'user'  // Définir le rôle par défaut
         });
       } else {
         user.picture = userData.picture;
@@ -171,13 +276,14 @@ const authController = {
         await user.save();
       }
 
-      // Générer le JWT avec la photo
+      // Générer le JWT avec la photo et le rôle
       const token = jwt.sign(
         { 
           id: user._id,
           name: user.name,
           email: user.email,
-          picture: user.picture // Inclure la photo dans le token
+          picture: user.picture,
+          role: user.role
         },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
@@ -185,9 +291,11 @@ const authController = {
 
       // Rediriger vers l'app avec toutes les données
       res.redirect(`gpsapp://auth?token=${token}&user=${encodeURIComponent(JSON.stringify({
+        id: user._id,
         name: user.name,
         email: user.email,
-        picture: user.picture
+        picture: user.picture,
+        role: user.role
       }))}`);
 
     } catch (error) {
@@ -196,110 +304,7 @@ const authController = {
     }
   },
 
-  mobileGoogleAuth: async (req, res) => {
-    try {
-      const { email, name, picture } = req.body;
-      
-      // Find or create user
-      let user = await User.findOne({ email });
-      
-      if (!user) {
-        user = await User.create({
-          email,
-          name,
-          picture,
-          googleId: email // Using email as googleId since we don't get it from mobile
-        });
-      }
-
-      const token = jwt.sign(
-        { 
-          id: user._id, // Include the MongoDB _id
-          email: user.email,
-          name: user.name
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-
-      res.json({
-        success: true,
-        token,
-        user: {
-          _id: user._id, // Include the MongoDB _id
-          email: user.email,
-          name: user.name,
-          picture: user.picture
-        }
-      });
-    } catch (error) {
-      console.error('Mobile Google auth error:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
-    }
-  },
-
-  authSuccess: (req, res) => {
-    try {
-      // Generate JWT token with user info
-      const token = jwt.sign(
-        { 
-          id: req.user._id,
-          name: req.user.displayName, 
-          email: req.user.email 
-        }, 
-        process.env.JWT_SECRET, 
-        { expiresIn: '24h' }
-      );
-
-      // Return JSON response instead of redirect
-      res.json({ 
-        success: true,
-        token,
-        user: {
-          name: req.user.displayName,
-          email: req.user.email
-        }
-      });
-    } catch (error) {
-      res.status(500).json({ 
-        success: false, 
-        message: 'Authentication failed' 
-      });
-    }
-  },
-
-  authFailure: (req, res) => {
-    res.status(401).json({ 
-      success: false, 
-      message: 'Google authentication failed' 
-    });
-  },
-
-  logout: (req, res) => {
-    req.logout();
-    req.session.destroy();
-    res.send('Goodbye!');
-  },
-
-  verifyEmail: async (req, res) => {
-    try {
-      const { token } = req.params;
-      
-      const user = await User.findOne({ verificationToken: token });
-      if (!user) {
-        return res.status(400).json({ message: 'Token invalide' });
-      }
-
-      user.isVerified = true;
-      user.verificationToken = undefined;
-      await user.save();
-
-      res.json({ message: 'Email vérifié avec succès' });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  },
-
+  // Autres méthodes existantes...
   me: async (req, res) => {
     try {
       // req.user should be set by your auth middleware
@@ -315,10 +320,11 @@ const authController = {
       res.json({
         success: true,
         user: {
-          _id: user._id,
+          id: user._id,
           email: user.email,
           name: user.name,
-          picture: user.picture
+          picture: user.picture,
+          role: user.role
         }
       });
     } catch (error) {
@@ -330,162 +336,112 @@ const authController = {
     }
   },
 
-  // Add new web-specific Google OAuth methods
+  // Web-specific OAuth methods...
   googleWebAuth: (req, res) => {
     try {
-        const redirectUri = `${process.env.API_URL}/api/auth/google/web/callback`;
-        console.log('Using redirect URI:', redirectUri);
+      const redirectUri = `${process.env.API_URL}/api/auth/google/web/callback`;
+      console.log('Using redirect URI:', redirectUri);
 
-        const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
-            `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
-            `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-            `response_type=code&` +
-            `scope=openid%20email%20profile&` +
-            `access_type=offline&` +
-            `prompt=consent`;
+      const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
+          `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
+          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+          `response_type=code&` +
+          `scope=openid%20email%20profile&` +
+          `access_type=offline&` +
+          `prompt=consent`;
 
-        console.log('Redirecting to:', url);
-        res.redirect(url);
+      console.log('Redirecting to:', url);
+      res.redirect(url);
     } catch (error) {
-        console.error('Google web auth error:', error);
-        res.redirect(`${process.env.FRONTEND_URL}/login?error=Configuration error`);
-    }
-},
-
-googleWebCallback: async (req, res) => {
-    try {
-        const { code } = req.query;
-        if (!code) {
-            throw new Error('No authorization code received');
-        }
-
-        const redirectUri = `${process.env.API_URL}/api/auth/google/web/callback`;
-        console.log('Callback received with code:', !!code);
-
-        // Échange le code contre un token
-        const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
-            code,
-            client_id: process.env.GOOGLE_CLIENT_ID,
-            client_secret: process.env.GOOGLE_CLIENT_SECRET,
-            redirect_uri: redirectUri,
-            grant_type: 'authorization_code'
-        });
-
-        const { access_token } = tokenResponse.data;
-        if (!access_token) {
-            throw new Error('No access token received');
-        }
-
-        // Récupérer les infos utilisateur
-        const userInfoResponse = await axios.get(
-            'https://www.googleapis.com/oauth2/v3/userinfo',
-            { headers: { Authorization: `Bearer ${access_token}` } }
-        );
-
-        const userData = userInfoResponse.data;
-        console.log('User data received:', {
-            email: userData.email,
-            name: userData.name
-        });
-
-        // Créer ou mettre à jour l'utilisateur
-        let user = await User.findOne({ email: userData.email });
-        if (!user) {
-            user = await User.create({
-                email: userData.email,
-                name: userData.name,
-                googleId: userData.sub,
-                picture: userData.picture
-            });
-        }
-
-        // Générer le JWT
-        const token = jwt.sign(
-            { 
-                id: user._id,
-                email: user.email,
-                name: user.name,
-                picture: user.picture
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-
-        // Redirection vers le frontend
-        const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
-        const redirectURL = `${frontendURL}/oauth-callback?` +
-            `token=${encodeURIComponent(token)}&` +
-            `user=${encodeURIComponent(JSON.stringify({
-                name: user.name,
-                email: user.email,
-                picture: user.picture
-            }))}`;
-
-        console.log('Redirecting to frontend:', redirectURL);
-        res.redirect(redirectURL);
-
-    } catch (error) {
-        console.error('Google web callback error:', error);
-        const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
-        res.redirect(`${frontendURL}/login?error=${encodeURIComponent(error.message)}`);
-    }
-},
-
-  // Ajouter une méthode pour promouvoir un utilisateur en administrateur (à protéger !)
-  promoteToAdmin: async (req, res) => {
-    try {
-      const { userId } = req.params;
-      
-      // Vérifier que l'utilisateur à modifier existe
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: 'Utilisateur non trouvé' });
-      }
-      
-      // Promouvoir l'utilisateur
-      user.role = 'admin';
-      await user.save();
-      
-      res.json({
-        message: 'Utilisateur promu administrateur avec succès',
-        user: {
-          id: user._id,
-          email: user.email,
-          name: user.name,
-          role: user.role
-        }
-      });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Erreur du serveur' });
+      console.error('Google web auth error:', error);
+      res.redirect(`${process.env.FRONTEND_URL}/login?error=Configuration error`);
     }
   },
 
-  // Ajouter une méthode pour rétrograder un administrateur
-  demoteToUser: async (req, res) => {
+  googleWebCallback: async (req, res) => {
     try {
-      const { userId } = req.params;
-      
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      const { code } = req.query;
+      if (!code) {
+        throw new Error('No authorization code received');
       }
-      
-      user.role = 'user';
-      await user.save();
-      
-      res.json({
-        message: 'Administrateur rétrogradé avec succès',
-        user: {
+
+      const redirectUri = `${process.env.API_URL}/api/auth/google/web/callback`;
+      console.log('Callback received with code:', !!code);
+
+      // Échange le code contre un token
+      const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+        code,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code'
+      });
+
+      const { access_token } = tokenResponse.data;
+      if (!access_token) {
+        throw new Error('No access token received');
+      }
+
+      // Récupérer les infos utilisateur
+      const userInfoResponse = await axios.get(
+        'https://www.googleapis.com/oauth2/v3/userinfo',
+        { headers: { Authorization: `Bearer ${access_token}` } }
+      );
+
+      const userData = userInfoResponse.data;
+      console.log('User data received:', {
+        email: userData.email,
+        name: userData.name
+      });
+
+      // Créer ou mettre à jour l'utilisateur
+      let user = await User.findOne({ email: userData.email });
+      if (!user) {
+        user = await User.create({
+          email: userData.email,
+          name: userData.name,
+          googleId: userData.sub,
+          picture: userData.picture,
+          role: 'user'  // Définir le rôle par défaut
+        });
+      } else {
+        user.picture = userData.picture;
+        user.lastLogin = new Date();
+        await user.save();
+      }
+
+      // Générer le JWT avec le rôle
+      const token = jwt.sign(
+        { 
           id: user._id,
           email: user.email,
           name: user.name,
+          picture: user.picture,
           role: user.role
-        }
-      });
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      // Redirection vers le frontend
+      const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const redirectURL = `${frontendURL}/oauth-callback?` +
+        `token=${encodeURIComponent(token)}&` +
+        `user=${encodeURIComponent(JSON.stringify({
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          picture: user.picture,
+          role: user.role
+        }))}`;
+
+      console.log('Redirecting to frontend:', redirectURL);
+      res.redirect(redirectURL);
+
     } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Erreur du serveur' });
+      console.error('Google web callback error:', error);
+      const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendURL}/login?error=${encodeURIComponent(error.message)}`);
     }
   }
 };
