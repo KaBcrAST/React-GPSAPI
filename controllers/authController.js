@@ -78,49 +78,47 @@ const authController = {
     try {
       const { email, password } = req.body;
       
-      console.log('Login attempt - received hash:', password);
-
-      const user = await User.findOne({ email: email.toLowerCase() });
+      // Trouver l'utilisateur
+      const user = await User.findOne({ email });
       if (!user) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email ou mot de passe incorrect'
-        });
+        return res.status(400).json({ message: 'Identifiants incorrects' });
       }
-
-      // Comparaison directe des hash SHA256
-      const passwordMatch = password === user.password;
-      console.log('Stored hash:', user.password);
-      console.log('Hash comparison result:', passwordMatch);
-
-      if (!passwordMatch) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email ou mot de passe incorrect'
-        });
+      
+      // Vérifier le mot de passe
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Identifiants incorrects' });
       }
-
+      
+      // Générer le token en incluant le rôle
       const token = jwt.sign(
-        { id: user._id, name: user.name, email: user.email },
-        process.env.JWT_SECRET,
+        { 
+          userId: user._id, 
+          email: user.email, 
+          role: user.role 
+        }, 
+        process.env.JWT_SECRET, 
         { expiresIn: '24h' }
       );
-
-      return res.json({
-        success: true,
+      
+      // Mettre à jour la date de dernière connexion
+      user.lastLogin = Date.now();
+      await user.save();
+      
+      // Renvoyer le token et les informations de l'utilisateur
+      res.json({
         token,
         user: {
+          id: user._id,
+          email: user.email,
           name: user.name,
-          email: user.email
+          role: user.role,
+          picture: user.picture
         }
       });
-
     } catch (error) {
-      console.error('Login error:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Erreur lors de la connexion'
-      });
+      console.error(error);
+      res.status(500).json({ message: 'Erreur du serveur' });
     }
   },
 
@@ -432,6 +430,64 @@ googleWebCallback: async (req, res) => {
         res.redirect(`${frontendURL}/login?error=${encodeURIComponent(error.message)}`);
     }
 },
+
+  // Ajouter une méthode pour promouvoir un utilisateur en administrateur (à protéger !)
+  promoteToAdmin: async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      // Vérifier que l'utilisateur à modifier existe
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
+      
+      // Promouvoir l'utilisateur
+      user.role = 'admin';
+      await user.save();
+      
+      res.json({
+        message: 'Utilisateur promu administrateur avec succès',
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Erreur du serveur' });
+    }
+  },
+
+  // Ajouter une méthode pour rétrograder un administrateur
+  demoteToUser: async (req, res) => {
+    try {
+      const { userId } = req.params;
+      
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      }
+      
+      user.role = 'user';
+      await user.save();
+      
+      res.json({
+        message: 'Administrateur rétrogradé avec succès',
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Erreur du serveur' });
+    }
+  }
 };
 
 module.exports = authController;

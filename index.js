@@ -13,6 +13,7 @@ const navigationRoutes = require('./routes/navigationRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const connectDB = require('./config/database');
 const trafficRoutes = require('./routes/trafficRoutes');
+const adminRoutes = require('./routes/adminRoutes');  // Nouvelles routes admin
 
 const app = express();
 connectDB();
@@ -65,7 +66,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/auth', authRoutes);
 app.use('/api', qrCodeRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api', speedLimitRoutes);
@@ -73,6 +74,7 @@ app.use('/api', navigationRoutes);
 app.use('/api', reportRoutes);
 app.use('/api/traffic', trafficRoutes);
 app.use('/api/navigation', navigationRoutes);
+app.use('/api/admin', adminRoutes);  // Prefix pour les routes admin
 
 console.log('Map routes registered');
 
