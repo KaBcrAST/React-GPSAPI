@@ -3,14 +3,16 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
+const validator = require('validator');
 
 const authController = {
   register: async (req, res) => {
     try {
       console.log('Register attempt received:', req.body);
-      const { name, email, password } = req.body;
+      const name = req.body.name ? String(req.body.name).trim() : '';
+      const email = req.body.email ? String(req.body.email).toLowerCase().trim() : '';
+      const password = req.body.password ? String(req.body.password) : '';
 
-      // Validation des données
       if (!name || !email || !password) {
         console.log('Missing required fields');
         return res.status(400).json({
@@ -19,11 +21,19 @@ const authController = {
         });
       }
 
+      // Validation d'email
+      if (!validator.isEmail(email)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Format d\'email invalide'
+        });
+      }
+
       // Le mot de passe arrive déjà hashé en SHA256 du frontend
       console.log('Registering new user:', email);
 
-      // Vérifier l'utilisateur existant
-      const existingUser = await User.findOne({ email: email.toLowerCase() });
+      // Vérifier l'utilisateur existant avec recherche sécurisée
+      const existingUser = await User.findOne({ email: email });
       if (existingUser) {
         return res.status(400).json({
           success: false,
@@ -31,11 +41,15 @@ const authController = {
         });
       }
 
-      // Créer l'utilisateur
+      // Rehash côté serveur pour plus de sécurité 
+      // (même si le client a déjà hashé en SHA256)
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Créer l'utilisateur avec données sanitisées
       const user = await User.create({
-        name: name.trim(),
-        email: email.toLowerCase().trim(),
-        password: password, // Le password est déjà en SHA256
+        name: name,
+        email: email,
+        password: hashedPassword,
         role: 'user' // Assurer que le nouveau utilisateur a le rôle 'user'
       });
 
@@ -76,12 +90,21 @@ const authController = {
 
   login: async (req, res) => {
     try {
-      const { email, password } = req.body;
+      // Sanitization des entrées
+      const email = req.body.email ? String(req.body.email).toLowerCase().trim() : '';
+      const password = req.body.password ? String(req.body.password) : '';
       
+      if (!email || !password) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Email et mot de passe requis' 
+        });
+      }
+
       console.log('Login attempt received');
 
-      // Trouver l'utilisateur
-      const user = await User.findOne({ email: email.toLowerCase() });
+      // Recherche sécurisée dans la base de données
+      const user = await User.findOne({ email: email });
       if (!user) {
         return res.status(400).json({ 
           success: false,
@@ -97,15 +120,21 @@ const authController = {
         });
       }
 
-      // Utiliser soit bcrypt.compare soit la comparaison directe selon comment le mot de passe est stocké
+      // Vérification sécurisée du mot de passe
       let passwordMatch;
 
       if (user.password.length === 64) {
         // Si le mot de passe stocké est un hachage SHA-256 (64 caractères)
         passwordMatch = password === user.password;
         console.log('Comparing password with SHA-256 hash');
+        
+        // Migration vers bcrypt pour renforcer la sécurité
+        if (passwordMatch) {
+          user.password = await bcrypt.hash(password, 10);
+          await user.save();
+        }
       } else {
-        // Sinon, utiliser bcrypt
+        // Utiliser bcrypt pour la comparaison
         passwordMatch = await bcrypt.compare(password, user.password);
         console.log('Comparing password with bcrypt');
       }
@@ -157,7 +186,15 @@ const authController = {
   // Méthode pour promouvoir un utilisateur en administrateur
   promoteToAdmin: async (req, res) => {
     try {
-      const { userId } = req.params;
+      const userId = req.params.userId ? String(req.params.userId) : '';
+      
+      // Validation de l'ID MongoDB
+      if (!validator.isMongoId(userId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID utilisateur invalide'
+        });
+      }
       
       // Vérifier que l'utilisateur à modifier existe
       const user = await User.findById(userId);
@@ -194,7 +231,15 @@ const authController = {
   // Méthode pour rétrograder un administrateur
   demoteToUser: async (req, res) => {
     try {
-      const { userId } = req.params;
+      const userId = req.params.userId ? String(req.params.userId) : '';
+      
+      // Validation de l'ID MongoDB
+      if (!validator.isMongoId(userId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID utilisateur invalide'
+        });
+      }
       
       const user = await User.findById(userId);
       if (!user) {
@@ -229,7 +274,8 @@ const authController = {
   // Liste tous les utilisateurs (pour l'admin)
   getAllUsers: async (req, res) => {
     try {
-      const users = await User.find().select('-password');
+      // Projection sécurisée pour exclure les données sensibles
+      const users = await User.find({}, { password: 0, __v: 0 }).limit(100);
       
       res.json({
         success: true,
@@ -526,7 +572,6 @@ const authController = {
         await user.save();
       }
 
-      // Générer le JWT avec le rôle
       const token = jwt.sign(
         { 
           id: user._id,
@@ -539,7 +584,6 @@ const authController = {
         { expiresIn: '24h' }
       );
 
-      // Redirection vers le frontend
       const frontendURL = process.env.FRONTEND_URL || 'http://localhost:3000';
       const redirectURL = `${frontendURL}/oauth-callback?` +
         `token=${encodeURIComponent(token)}&` +

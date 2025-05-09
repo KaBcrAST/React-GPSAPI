@@ -1,26 +1,30 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-const { validateAuth } = require('../middleware/validator');
-const authMiddleware = require('../middleware/auth');
+const { isAuthenticated, isAdmin } = require('../middlewares/middlewares');
 
-// Existing routes
-router.post('/register', validateAuth, authController.register);
-router.post('/login', validateAuth, authController.login);
+// Routes d'authentification de base
+router.post('/register', authController.register);
+router.post('/login', authController.login);
+// Protéger la déconnexion
+router.post('/logout', isAuthenticated, authController.logout);
+router.get('/me', isAuthenticated, authController.me);
 
-// Keep existing OAuth routes for mobile app
+// Routes d'authentification Google
 router.get('/google', authController.googleAuth);
 router.get('/google/callback', authController.googleAuthCallback);
-router.get('/google/failure', authController.authFailure);
-
-// Add new web-specific OAuth routes
+router.post('/google/mobile', authController.mobileGoogleAuth);
 router.get('/google/web', authController.googleWebAuth);
 router.get('/google/web/callback', authController.googleWebCallback);
 
-// Keep other existing routes
-router.post('/mobile/google', authController.mobileGoogleAuth);
+// Routes d'administration
+// Double protection pour les routes administratives
+router.put('/promote/:userId', isAuthenticated, isAdmin, authController.promoteToAdmin);
+router.put('/demote/:userId', isAuthenticated, isAdmin, authController.demoteToUser);
+router.get('/users', isAuthenticated, isAdmin, authController.getAllUsers);
+
+// Routes de succès/échec
 router.get('/success', authController.authSuccess);
-router.get('/logout', authController.logout);
-router.get('/me', authMiddleware, authController.me);
+router.get('/failure', authController.authFailure);
 
 module.exports = router;
