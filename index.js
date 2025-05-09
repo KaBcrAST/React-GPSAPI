@@ -37,7 +37,7 @@ app.use(helmet());
 // Limiter les requêtes pour éviter les attaques par force brute
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limite chaque IP à 100 requêtes par fenêtre
+  max: 1000, // limite chaque IP à 100 requêtes par fenêtre
   standardHeaders: true,
   legacyHeaders: false,
   message: { 
