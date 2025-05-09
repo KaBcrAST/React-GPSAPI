@@ -65,9 +65,12 @@ app.use('/api/auth/register', authLimiter);
 // Appliquer le limiteur général aux autres routes
 app.use('/api', generalLimiter);
 
+// Configuration CORS pour permettre les requêtes de toutes les origines
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  credentials: true
+  origin: '*', // Accepter toutes les origines
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Sécuriser les sessions
