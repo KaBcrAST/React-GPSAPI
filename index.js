@@ -158,7 +158,7 @@ app.use('/api', navigationRoutes);
 app.use('/api', reportRoutes);
 app.use('/api/traffic', trafficRoutes);
 app.use('/api/admin', adminRoutes);
-
+app.use('/api/navigation', navigationRoutes);
 console.log('Map routes registered');
 
 app.get('/', (req, res) => {
