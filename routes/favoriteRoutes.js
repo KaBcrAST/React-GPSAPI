@@ -9,7 +9,7 @@ router.use(isAuthenticated);
 // Routes CRUD
 router.get('/', favoriteRoutesController.getAllFavorites);
 router.get('/:id', favoriteRoutesController.getFavoriteById);
-router.post('/', favoriteRoutesController.addFavorite);
+router.post('/add', favoriteRoutesController.addFavorite);
 router.put('/:id', favoriteRoutesController.updateFavorite);
 router.delete('/:id', favoriteRoutesController.deleteFavorite);
 
