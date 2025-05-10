@@ -157,6 +157,9 @@ app.use('/api', navigationRoutes);
 app.use('/api', reportRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/navigation', navigationRoutes);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/api/profile', profileRoutes); // Ajoutez cette ligne
+
 console.log('Map routes registered');
 
 app.get('/', (req, res) => {
