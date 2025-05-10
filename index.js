@@ -16,7 +16,6 @@ const speedLimitRoutes = require('./routes/speedLimitRoutes');
 const navigationRoutes = require('./routes/navigationRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const connectDB = require('./config/database');
-const trafficRoutes = require('./routes/trafficRoutes');
 const adminRoutes = require('./routes/adminRoutes');  // Nouvelles routes admin
 const https = require('https');
 const fs = require('fs');
@@ -156,7 +155,6 @@ app.use('/api/search', searchRoutes);
 app.use('/api', speedLimitRoutes);
 app.use('/api', navigationRoutes);
 app.use('/api', reportRoutes);
-app.use('/api/traffic', trafficRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/navigation', navigationRoutes);
 console.log('Map routes registered');
