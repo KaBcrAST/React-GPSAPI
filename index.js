@@ -21,6 +21,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const profileRoutes = require('./routes/profileRoutes'); // Importer les routes de profil
+const favoriteRoutes = require('./routes/favoriteRoutes'); // Ajouter ceci avec vos autres imports de routes
 
 const app = express();
 connectDB();
@@ -160,6 +161,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/navigation', navigationRoutes);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/profile', profileRoutes); // Ajoutez cette ligne
+app.use('/api/favorites', favoriteRoutes); // Puis ajouter cette ligne avec vos autres routes
 
 console.log('Map routes registered');
 
