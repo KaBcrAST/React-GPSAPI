@@ -1,26 +1,11 @@
 const User = require('../models/User');
 const validator = require('validator');
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const authService = require('../services/authService');
 
-// Configuration du stockage des images avec multer
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads/profiles');
-    // Créer le dossier s'il n'existe pas
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Générer un nom de fichier unique avec l'ID utilisateur
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-    const fileExt = path.extname(file.originalname);
-    cb(null, `user-${req.user.id}-${uniqueSuffix}${fileExt}`);
-  }
-});
+// Configuration de multer pour stocker temporairement les images en mémoire
+// (au lieu de les écrire sur le disque)
+const storage = multer.memoryStorage();
 
 // Filtrer les types de fichiers acceptés
 const fileFilter = (req, file, cb) => {
@@ -39,9 +24,37 @@ const upload = multer({
   fileFilter
 });
 
+/**
+ * Contrôleur unifié pour les opérations liées au profil utilisateur
+ */
 const profileController = {
-  // Obtenir le profil utilisateur
+  /**
+   * Récupère les informations de l'utilisateur connecté
+   */
   getProfile: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      
+      // Appel au service d'authentification
+      const user = await authService.getUserById(userId);
+      
+      res.json({
+        success: true,
+        user
+      });
+    } catch (error) {
+      console.error('Get user error:', error);
+      res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message || 'Erreur lors de la récupération des informations utilisateur'
+      });
+    }
+  },
+  
+  /**
+   * Alternative: Récupérer le profil utilisateur directement depuis le modèle
+   */
+  me: async (req, res) => {
     try {
       // Trouver l'utilisateur avec son ID (depuis le token JWT)
       const user = await User.findById(req.user.id, { password: 0, __v: 0 });
@@ -73,7 +86,9 @@ const profileController = {
     }
   },
 
-  // Mettre à jour l'email
+  /**
+   * Mettre à jour l'email
+   */
   updateEmail: async (req, res) => {
     try {
       const { email } = req.body;
@@ -129,13 +144,16 @@ const profileController = {
     }
   },
 
-  // Télécharger et mettre à jour la photo de profil
+  /**
+   * Télécharger et mettre à jour la photo de profil (stockage en base de données)
+   */
   uploadProfilePicture: (req, res) => {
     // Le middleware multer s'occupe de l'upload
     const uploadMiddleware = upload.single('profilePicture');
     
     uploadMiddleware(req, res, async (err) => {
       if (err) {
+        console.error('Upload middleware error:', err);
         return res.status(400).json({
           success: false,
           message: err.message || 'Erreur lors du téléchargement de l\'image'
@@ -151,19 +169,19 @@ const profileController = {
           });
         }
 
-        // Construire l'URL de l'image
-        const imageUrl = `${process.env.API_URL}/uploads/profiles/${req.file.filename}`;
-
+        console.log('File uploaded to memory:', req.file.originalname, req.file.size, 'bytes');
+        
+        // Construire l'image au format base64 pour stockage en BDD
+        const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+        
         // Mettre à jour la photo de profil dans la base de données
         const user = await User.findByIdAndUpdate(
           req.user.id,
-          { picture: imageUrl },
+          { picture: base64Image },
           { new: true, select: '-password -__v' }
         );
 
         if (!user) {
-          // Supprimer le fichier si l'utilisateur n'existe pas
-          fs.unlinkSync(req.file.path);
           return res.status(404).json({
             success: false,
             message: 'Utilisateur non trouvé'
@@ -182,21 +200,19 @@ const profileController = {
           }
         });
       } catch (error) {
-        // En cas d'erreur, supprimer le fichier téléchargé
-        if (req.file) {
-          fs.unlinkSync(req.file.path);
-        }
-        
         console.error('Profile picture upload error:', error);
         res.status(500).json({
           success: false,
-          message: 'Erreur lors de la mise à jour de la photo de profil'
+          message: 'Erreur lors de la mise à jour de la photo de profil',
+          error: error.message
         });
       }
     });
   },
 
-  // Mettre à jour le nom d'utilisateur
+  /**
+   * Mettre à jour le nom d'utilisateur
+   */
   updateName: async (req, res) => {
     try {
       const { name } = req.body;
@@ -243,7 +259,9 @@ const profileController = {
     }
   },
 
-  // Supprimer la photo de profil
+  /**
+   * Supprimer la photo de profil
+   */
   deleteProfilePicture: async (req, res) => {
     try {
       const user = await User.findById(req.user.id);
@@ -254,19 +272,7 @@ const profileController = {
         });
       }
 
-      // Si l'utilisateur a déjà une photo et qu'elle est stockée localement
-      if (user.picture && user.picture.includes('/uploads/profiles/')) {
-        // Extraire le nom du fichier
-        const filename = user.picture.split('/').pop();
-        const filePath = path.join(__dirname, '../uploads/profiles', filename);
-        
-        // Supprimer le fichier s'il existe
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      }
-
-      // Mettre à jour l'utilisateur avec une photo par défaut ou null
+      // Mettre à jour l'utilisateur avec une photo à null
       user.picture = null;
       await user.save();
 
@@ -288,6 +294,22 @@ const profileController = {
         message: 'Erreur lors de la suppression de la photo de profil'
       });
     }
+  },
+
+  /**
+   * Déconnecte l'utilisateur
+   */
+  logout: (req, res) => {
+    if (req.logout) {
+      req.logout();
+    }
+    if (req.session) {
+      req.session.destroy();
+    }
+    res.json({
+      success: true,
+      message: 'Déconnexion réussie'
+    });
   }
 };
 

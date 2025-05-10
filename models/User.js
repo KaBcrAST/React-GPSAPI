@@ -20,7 +20,10 @@ const userSchema = new mongoose.Schema({
     }
   },
   googleId: String,
-  picture: String,
+  picture: {
+    type: String,  // Pour stocker les images en base64
+    default: null
+  },
   role: {
     type: String,
     enum: ['user', 'admin'],
