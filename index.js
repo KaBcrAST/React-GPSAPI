@@ -20,6 +20,7 @@ const adminRoutes = require('./routes/adminRoutes');  // Nouvelles routes admin
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const profileRoutes = require('./routes/profileRoutes'); // Importer les routes de profil
 
 const app = express();
 connectDB();
