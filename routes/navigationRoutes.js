@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const navigationController = require('../controllers/navigationController');
+const navigationController = require('../controllers/navigation');  // Chemin mis à jour
 const speedLimitController = require('../controllers/speedLimitController');
 const navigationStepsController = require('../controllers/navigationStepsController');
 
