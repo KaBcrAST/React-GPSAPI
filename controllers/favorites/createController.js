@@ -1,14 +1,9 @@
 const FavoriteRoute = require('../../models/FavoriteRoute');
 
-/**
- * Ajoute un nouveau trajet favori
- * POST /api/favorites/add
- */
 const addFavorite = async (req, res) => {
   try {
     const { name, origin, destination, waypoints, travelMode, icon, color } = req.body;
     
-    // Validation des données requises
     if (!name || !origin || !destination) {
       return res.status(400).json({
         success: false,
@@ -16,7 +11,6 @@ const addFavorite = async (req, res) => {
       });
     }
     
-    // Vérification des coordonnées
     if (!origin.lat || !origin.lng || !destination.lat || !destination.lng) {
       return res.status(400).json({
         success: false,
@@ -24,7 +18,6 @@ const addFavorite = async (req, res) => {
       });
     }
     
-    // Vérifier si un trajet similaire existe déjà (même origine et destination)
     const existingSimilar = await FavoriteRoute.findOne({
       user: req.user.id,
       'origin.lat': origin.lat,
@@ -34,7 +27,6 @@ const addFavorite = async (req, res) => {
     });
     
     if (existingSimilar) {
-      // Mettre à jour le compteur et la date d'utilisation
       existingSimilar.useCount += 1;
       existingSimilar.lastUsed = new Date();
       await existingSimilar.save();
@@ -46,7 +38,6 @@ const addFavorite = async (req, res) => {
       });
     }
     
-    // Créer un nouveau trajet favori
     const favoriteRoute = new FavoriteRoute({
       user: req.user.id,
       name: name.trim(),

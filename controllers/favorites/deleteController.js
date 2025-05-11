@@ -1,10 +1,6 @@
 const FavoriteRoute = require('../../models/FavoriteRoute');
 const validator = require('validator');
 
-/**
- * Supprime un trajet favori
- * DELETE /api/favorites/:id
- */
 const deleteFavorite = async (req, res) => {
   try {
     const favoriteId = req.params.id;
