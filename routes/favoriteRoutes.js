@@ -7,9 +7,9 @@ const { isAuthenticated } = require('../middlewares/middlewares');
 router.use(isAuthenticated);
 
 // Routes CRUD
-router.get('/get', favoritesController.getAllFavorites);
+router.get('/', favoritesController.getAllFavorites);
 router.get('/:id', favoritesController.getFavoriteById);
-router.post('/add', favoritesController.addFavorite);
+router.post('/', favoritesController.addFavorite);
 router.put('/:id', favoritesController.updateFavorite);
 router.delete('/:id', favoritesController.deleteFavorite);
 
