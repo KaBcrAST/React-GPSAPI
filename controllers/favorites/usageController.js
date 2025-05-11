@@ -1,10 +1,6 @@
 const FavoriteRoute = require('../../models/FavoriteRoute');
 const validator = require('validator');
 
-/**
- * Marque un trajet favori comme utilisé (incrémente le compteur)
- * POST /api/favorites/:id/use
- */
 const useFavorite = async (req, res) => {
   try {
     const favoriteId = req.params.id;

@@ -2,19 +2,15 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const tokenService = require('./tokenService');
 
-/**
- * Service gérant l'authentification des utilisateurs
- */
 class AuthService {
   /**
-   * Inscrit un nouvel utilisateur
-   * @param {Object} userData - Données de l'utilisateur
-   * @returns {Object} Utilisateur créé et token
+   * 
+   * @param {Object} userData - 
+   * @returns {Object} 
    */
   async registerUser(userData) {
     const { name, email, password } = userData;
 
-    // Vérifier l'utilisateur existant
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       const error = new Error('Cet email est déjà utilisé');
@@ -22,10 +18,8 @@ class AuthService {
       throw error;
     }
 
-    // Hacher le mot de passe
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Créer l'utilisateur
     const user = await User.create({
       name,
       email,
@@ -33,7 +27,6 @@ class AuthService {
       role: 'user'
     });
 
-    // Générer le token
     const token = tokenService.generateToken(user);
 
     return {
@@ -43,10 +36,9 @@ class AuthService {
   }
 
   /**
-   * Connecte un utilisateur
-   * @param {string} email - Email de l'utilisateur
-   * @param {string} password - Mot de passe
-   * @returns {Object} Utilisateur et token
+   * @param {string} email 
+   * @param {string} password 
+   * @returns {Object} 
    */
   async loginUser(email, password) {
     const user = await User.findOne({ email });
@@ -56,7 +48,7 @@ class AuthService {
       throw error;
     }
 
-    // Vérification du mot de passe
+
     let passwordMatch;
 
     if (user.googleId && !user.password) {
@@ -66,16 +58,13 @@ class AuthService {
     }
 
     if (user.password.length === 64) {
-      // SHA-256 (ancien format)
       passwordMatch = password === user.password;
       
-      // Migration vers bcrypt
       if (passwordMatch) {
         user.password = await bcrypt.hash(password, 10);
         await user.save();
       }
     } else {
-      // Bcrypt
       passwordMatch = await bcrypt.compare(password, user.password);
     }
 
@@ -85,11 +74,9 @@ class AuthService {
       throw error;
     }
 
-    // Mettre à jour la date de dernière connexion
     user.lastLogin = Date.now();
     await user.save();
 
-    // Générer le token
     const token = tokenService.generateToken(user);
 
     return {
@@ -99,14 +86,12 @@ class AuthService {
   }
 
   /**
-   * Gère l'authentification Google
-   * @param {Object} userData - Données de l'utilisateur Google
-   * @returns {Object} Utilisateur et token
+   * @param {Object} userData 
+   * @returns {Object}
    */
   async handleGoogleAuth(userData) {
     const { email, name, picture, sub: googleId } = userData;
 
-    // Trouver ou créer l'utilisateur
     let user = await User.findOne({ email });
     
     if (!user) {
@@ -118,13 +103,11 @@ class AuthService {
         role: 'user'
       });
     } else {
-      // Mettre à jour l'utilisateur existant
       user.picture = picture;
       user.lastLogin = new Date();
       await user.save();
     }
 
-    // Générer le token
     const token = tokenService.generateToken(user);
 
     return {
@@ -134,10 +117,9 @@ class AuthService {
   }
 
   /**
-   * Change le rôle d'un utilisateur
-   * @param {string} userId - ID de l'utilisateur
-   * @param {string} role - Nouveau rôle ('user' ou 'admin')
-   * @returns {Object} Utilisateur mis à jour
+   * @param {string} userId 
+   * @param {string} role 
+   * @returns {Object}
    */
   async changeUserRole(userId, role) {
     if (!['user', 'admin'].includes(role)) {
@@ -160,17 +142,15 @@ class AuthService {
   }
 
   /**
-   * Récupère tous les utilisateurs
-   * @returns {Array} Liste des utilisateurs
+   * @returns {Array} 
    */
   async getAllUsers() {
     return User.find({}, { password: 0, __v: 0 }).limit(100);
   }
 
   /**
-   * Récupère un utilisateur par ID
-   * @param {string} userId - ID de l'utilisateur
-   * @returns {Object} Utilisateur
+   * @param {string} userId 
+   * @returns {Object}
    */
   async getUserById(userId) {
     const user = await User.findById(userId);
@@ -183,9 +163,8 @@ class AuthService {
   }
 
   /**
-   * Nettoie les données utilisateur sensibles
-   * @param {Object} user - Utilisateur
-   * @returns {Object} Utilisateur sans données sensibles
+   * @param {Object} user 
+   * @returns {Object} 
    */
   sanitizeUser(user) {
     const sanitized = user.toObject ? user.toObject() : { ...user };

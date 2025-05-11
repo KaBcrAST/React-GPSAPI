@@ -12,6 +12,6 @@ router.get('/reports/all', reportController.getAllReports);
 
 router.post('/reports/:reportId/upvote', reportController.upvoteReport);
 
-router.get('/reports/stats', reportController.getReportStats); // Nouvelle route pour les statistiques
+router.get('/reports/stats', reportController.getReportStats); 
 
 module.exports = router;

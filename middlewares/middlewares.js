@@ -17,7 +17,6 @@ const isAuthenticated = (req, res, next) => {
   }
 };
 
-// Ajoutez ce middleware si ce n'est pas déjà fait
 const isAdmin = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
     next();
@@ -31,5 +30,5 @@ const isAdmin = (req, res, next) => {
 
 module.exports = { 
   isAuthenticated,
-  isAdmin // Assurez-vous d'exporter isAdmin
+  isAdmin 
 };

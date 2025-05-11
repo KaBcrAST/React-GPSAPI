@@ -68,7 +68,6 @@ const favoriteRouteSchema = new mongoose.Schema({
   }
 });
 
-// Ajouter des index pour améliorer les performances des requêtes
 favoriteRouteSchema.index({ user: 1, createdAt: -1 });
 favoriteRouteSchema.index({ user: 1, useCount: -1 });
 

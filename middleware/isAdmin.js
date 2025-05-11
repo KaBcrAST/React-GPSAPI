@@ -1,6 +1,5 @@
 module.exports = (req, res, next) => {
   try {
-    // L'utilisateur devrait déjà être défini par le middleware auth
     if (!req.user) {
       return res.status(401).json({ message: 'Non authentifié' });
     }

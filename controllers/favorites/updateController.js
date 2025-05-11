@@ -1,10 +1,6 @@
 const FavoriteRoute = require('../../models/FavoriteRoute');
 const validator = require('validator');
 
-/**
- * Met à jour un trajet favori existant
- * PUT /api/favorites/:id
- */
 const updateFavorite = async (req, res) => {
   try {
     const favoriteId = req.params.id;
@@ -17,7 +13,6 @@ const updateFavorite = async (req, res) => {
       });
     }
     
-    // Vérifier si le trajet existe et appartient à l'utilisateur
     const favorite = await FavoriteRoute.findOne({
       _id: favoriteId,
       user: req.user.id
@@ -30,7 +25,6 @@ const updateFavorite = async (req, res) => {
       });
     }
     
-    // Mettre à jour les champs modifiables
     if (name) favorite.name = name.trim();
     if (origin) favorite.origin = origin;
     if (destination) favorite.destination = destination;
@@ -39,7 +33,6 @@ const updateFavorite = async (req, res) => {
     if (icon) favorite.icon = icon;
     if (color) favorite.color = color;
     
-    // Incrémenter le compteur d'utilisation
     favorite.useCount += 1;
     favorite.lastUsed = new Date();
     

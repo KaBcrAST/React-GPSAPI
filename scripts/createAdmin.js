@@ -3,7 +3,6 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 require('dotenv').config();
 
-// Connecter à la base de données
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -12,7 +11,6 @@ mongoose.connect(process.env.MONGODB_URI, {
   console.log('Connected to MongoDB');
 
   try {
-    // Vérifier si un admin existe déjà
     const adminExists = await User.findOne({ role: 'admin' });
     
     if (adminExists) {
@@ -22,25 +20,20 @@ mongoose.connect(process.env.MONGODB_URI, {
       process.exit(0);
     }
     
-    // Définir les identifiants de l'administrateur
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@gpsapp.com';
     const adminName = process.env.ADMIN_NAME || 'Administrateur';
     const adminPassword = process.env.ADMIN_PASSWORD || 'Admin123!';
     
-    // Vérifier si le mot de passe doit être hashé avec bcrypt ou utilisé tel quel (pour SHA-256)
     let password;
     
     if (process.env.USE_BCRYPT === 'true') {
-      // Utiliser bcrypt pour hacher le mot de passe
       password = await bcrypt.hash(adminPassword, 10);
       console.log('Mot de passe hashé avec bcrypt');
     } else {
-      // Utiliser le mot de passe tel quel (supposé déjà en SHA-256)
       password = adminPassword;
       console.log('Mot de passe utilisé tel quel (pour SHA-256)');
     }
     
-    // Créer l'administrateur
     const adminUser = new User({
       email: adminEmail,
       name: adminName,

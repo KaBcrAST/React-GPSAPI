@@ -25,7 +25,6 @@ const reportAllSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  // Champ optionnel pour traçabilité
   originalReportId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Report',
@@ -35,12 +34,9 @@ const reportAllSchema = new mongoose.Schema({
   collection: 'reportsAll'
 });
 
-// Index géospatial pour les recherches de proximité
 reportAllSchema.index({ location: '2dsphere' });
 
-// Middleware pre-save pour assurer la compatibilité avec le frontend
 reportAllSchema.pre('save', function(next) {
-  // Si les coordonnées sont envoyées séparément
   if (!this.location || !this.location.coordinates) {
     if (this._latitude && this._longitude) {
       this.location = {

@@ -25,21 +25,14 @@ const generateLocationQR = async (req, res) => {
     if (!latitude || !longitude) {
       return res.status(400).json({ error: 'Latitude et longitude sont requis' });
     }
-    
-    // Format d'URL pour Expo Go - pointer vers votre app
-    // exp://<IP_ADDRESS:PORT>/--/location?lat=XXX&lon=YYY&name=ZZZ
-    // Remplacez avec l'adresse IP et le port de votre serveur Expo
     const expoDevelopmentUrl = `exp://192.168.1.X:19000/--/location?lat=${latitude}&lon=${longitude}&name=${encodeURIComponent(name || 'Destination')}`;
     
-    // Générer le QR code
     const qrDataURL = await QRCode.toDataURL(expoDevelopmentUrl);
     const qrImage = qrDataURL.replace(/^data:image\/png;base64,/, '');
     
-    // Sauvegarder l'image (optionnel)
     const fileName = `location_${Date.now()}.png`;
     const filePath = path.join(__dirname, '..', 'public', 'qrcodes', fileName);
     
-    // Créer le dossier s'il n'existe pas
     const dir = path.join(__dirname, '..', 'public', 'qrcodes');
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });

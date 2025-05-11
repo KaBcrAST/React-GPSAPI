@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema({
   },
   googleId: String,
   picture: {
-    type: String,  // Pour stocker les images en base64
+    type: String,
     default: null
   },
   role: {

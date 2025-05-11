@@ -16,31 +16,27 @@ const speedLimitRoutes = require('./routes/speedLimitRoutes');
 const navigationRoutes = require('./routes/navigationRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const connectDB = require('./config/database');
-const adminRoutes = require('./routes/adminRoutes');  // Nouvelles routes admin
+const adminRoutes = require('./routes/adminRoutes'); 
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const profileRoutes = require('./routes/profileRoutes'); // Importer les routes de profil
-const favoriteRoutes = require('./routes/favoriteRoutes'); // Ajouter ceci avec vos autres imports de routes
+const profileRoutes = require('./routes/profileRoutes'); 
+const favoriteRoutes = require('./routes/favoriteRoutes'); 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 
 const app = express();
 connectDB();
 
-// Protection contre les attaques XSS
 app.use(xss());
 
-// Protection contre les injections NoSQL
 app.use(mongoSanitize());
 
-// Sécurité des en-têtes HTTP
 app.use(helmet());
 
-// Limiter les requêtes pour éviter les attaques par force brute
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100000, // limite chaque IP à 100 requêtes par fenêtre
+  windowMs: 15 * 60 * 1000, 
+  max: 100000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { 
@@ -49,10 +45,9 @@ const generalLimiter = rateLimit({
   }
 });
 
-// Limiter spécifiquement les tentatives d'authentification
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 1000, // 5 tentatives d'authentification max par 15 minutes
+  max: 1000, 
   standardHeaders: true,
   legacyHeaders: false,
   message: { 
@@ -61,37 +56,32 @@ const authLimiter = rateLimit({
   }
 });
 
-// Appliquer le limiteur aux routes d'authentification
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 
-// Appliquer le limiteur général aux autres routes
 app.use('/api', generalLimiter);
 
-// Configuration CORS pour permettre les requêtes de toutes les origines
 app.use(cors({
-  origin: '*', // Accepter toutes les origines
+  origin: '*', 
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Sécuriser les sessions
 app.use(session({ 
   secret: process.env.SESSION_SECRET,
   resave: false, 
   saveUninitialized: true,
   cookie: { 
-    secure: process.env.NODE_ENV === 'production', // Cookies sécurisés en production
-    httpOnly: true, // Empêche l'accès JS aux cookies
-    sameSite: 'lax' // Protection CSRF
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true, 
+    sameSite: 'lax' 
   } 
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Parser JSON avec validation et sanitization
 app.use(express.json({ 
   limit: '10mb',
   verify: (req, res, buf) => {
@@ -110,14 +100,11 @@ app.use(express.urlencoded({
   limit: '10mb' 
 }));
 
-// Journalisation des requêtes avec masquage des données sensibles
 app.use((req, res, next) => {
-  // Fonction pour masquer les données sensibles
   const maskSensitiveData = (obj) => {
     if (!obj) return obj;
     const masked = { ...obj };
     
-    // Masquer les champs sensibles
     if (masked.password) masked.password = '******';
     if (masked.token) masked.token = '******';
     if (masked.apiKey) masked.apiKey = '******';
@@ -133,7 +120,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Middleware de timeout
 app.use((req, res, next) => {
   const timeout = parseInt(process.env.FUNCTION_TIMEOUT) || 30000; 
   
@@ -152,7 +138,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api', qrCodeRoutes);
 app.use('/api/search', searchRoutes);
@@ -162,10 +147,9 @@ app.use('/api', reportRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/navigation', navigationRoutes);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/api/profile', profileRoutes); // Ajoutez cette ligne
-app.use('/api/favorites', favoriteRoutes); // Puis ajouter cette ligne avec vos autres routes
+app.use('/api/profile', profileRoutes); 
+app.use('/api/favorites', favoriteRoutes); 
 
-// Documentation Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 console.log('Map routes registered');
@@ -178,7 +162,6 @@ app.get('/protected', isAuthenticated, (req, res) => {
   res.send('This is a protected route');
 });
 
-// Middleware de gestion des erreurs
 app.use((err, req, res, next) => {
   console.error('❌ Error:', {
     path: req.path,
@@ -188,7 +171,6 @@ app.use((err, req, res, next) => {
     code: err.code
   });
 
-  // Gestion spécifique par type d'erreur
   switch (err.name) {
     case 'MongoError':
     case 'MongoServerError':
@@ -213,7 +195,6 @@ app.use((err, req, res, next) => {
       });
   }
 
-  // Erreur par défaut
   res.status(err.status || 500).json({
     error: 'Server error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Erreur serveur interne'
@@ -222,7 +203,6 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-// Tenter de démarrer en HTTPS si les certificats existent
 try {
   const httpsOptions = {
     key: fs.readFileSync(path.join(__dirname, 'certificates', 'key.pem')),

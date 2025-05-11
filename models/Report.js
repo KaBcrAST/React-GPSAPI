@@ -20,7 +20,7 @@ const reportSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    expires: 600 // Les rapports expirent après 10 minutes (600 secondes)
+    expires: 600 
   },
   upvotes: {
     type: Number,
@@ -30,12 +30,9 @@ const reportSchema = new mongoose.Schema({
   collection: 'reports'
 });
 
-// Index géospatial pour les recherches de proximité
 reportSchema.index({ location: '2dsphere' });
 
-// Middleware pre-save pour assurer la compatibilité avec le frontend
 reportSchema.pre('save', function(next) {
-  // Si les coordonnées sont envoyées séparément
   if (!this.location || !this.location.coordinates) {
     if (this._latitude && this._longitude) {
       this.location = {
