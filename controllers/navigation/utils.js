@@ -1,4 +1,3 @@
-// Fonction utilitaire pour décoder les polylines
 function decodePolyline(encoded) {
   const points = [];
   let index = 0, len = encoded.length;

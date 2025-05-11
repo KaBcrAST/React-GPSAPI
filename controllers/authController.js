@@ -8,20 +8,17 @@ const validator = require('validator');
 const authController = {
   register: async (req, res) => {
     try {
-      console.log('Register attempt received:', req.body);
       const name = req.body.name ? String(req.body.name).trim() : '';
       const email = req.body.email ? String(req.body.email).toLowerCase().trim() : '';
       const password = req.body.password ? String(req.body.password) : '';
 
       if (!name || !email || !password) {
-        console.log('Missing required fields');
         return res.status(400).json({
           success: false,
           message: 'Tous les champs sont requis'
         });
       }
 
-      // Validation d'email
       if (!validator.isEmail(email)) {
         return res.status(400).json({
           success: false,
@@ -29,10 +26,7 @@ const authController = {
         });
       }
 
-      // Le mot de passe arrive déjà hashé en SHA256 du frontend
-      console.log('Registering new user:', email);
 
-      // Vérifier l'utilisateur existant avec recherche sécurisée
       const existingUser = await User.findOne({ email: email });
       if (existingUser) {
         return res.status(400).json({
@@ -40,32 +34,26 @@ const authController = {
           message: 'Cet email est déjà utilisé'
         });
       }
-
-      // Rehash côté serveur pour plus de sécurité 
-      // (même si le client a déjà hashé en SHA256)
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Créer l'utilisateur avec données sanitisées
       const user = await User.create({
         name: name,
         email: email,
         password: hashedPassword,
-        role: 'user' // Assurer que le nouveau utilisateur a le rôle 'user'
+        role: 'user'
       });
 
-      // Générer le token JWT
       const token = jwt.sign(
         { 
           id: user._id,
           name: user.name,
           email: user.email,
-          role: user.role // Inclure le rôle dans le token
+          role: user.role 
         },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      // Retourner la réponse
       return res.status(201).json({
         success: true,
         message: 'Inscription réussie',
@@ -90,7 +78,6 @@ const authController = {
 
   login: async (req, res) => {
     try {
-      // Sanitization des entrées
       const email = req.body.email ? String(req.body.email).toLowerCase().trim() : '';
       const password = req.body.password ? String(req.body.password) : '';
       
@@ -101,9 +88,7 @@ const authController = {
         });
       }
 
-      console.log('Login attempt received');
 
-      // Recherche sécurisée dans la base de données
       const user = await User.findOne({ email: email });
       if (!user) {
         return res.status(400).json({ 
@@ -112,7 +97,6 @@ const authController = {
         });
       }
       
-      // Si c'est un compte Google, refuser la connexion par mot de passe
       if (user.googleId && !user.password) {
         return res.status(400).json({ 
           success: false,
@@ -120,23 +104,17 @@ const authController = {
         });
       }
 
-      // Vérification sécurisée du mot de passe
       let passwordMatch;
 
       if (user.password.length === 64) {
-        // Si le mot de passe stocké est un hachage SHA-256 (64 caractères)
         passwordMatch = password === user.password;
-        console.log('Comparing password with SHA-256 hash');
         
-        // Migration vers bcrypt pour renforcer la sécurité
         if (passwordMatch) {
           user.password = await bcrypt.hash(password, 10);
           await user.save();
         }
       } else {
-        // Utiliser bcrypt pour la comparaison
         passwordMatch = await bcrypt.compare(password, user.password);
-        console.log('Comparing password with bcrypt');
       }
 
       if (!passwordMatch) {
@@ -146,11 +124,9 @@ const authController = {
         });
       }
 
-      // Mettre à jour la date de dernière connexion
       user.lastLogin = Date.now();
       await user.save();
       
-      // Générer le token en incluant le rôle
       const token = jwt.sign(
         { 
           id: user._id, 
@@ -162,7 +138,6 @@ const authController = {
         { expiresIn: '24h' }
       );
       
-      // Renvoyer le token et les informations de l'utilisateur
       res.json({
         success: true,
         token,
@@ -183,12 +158,10 @@ const authController = {
     }
   },
 
-  // Méthode pour promouvoir un utilisateur en administrateur
   promoteToAdmin: async (req, res) => {
     try {
       const userId = req.params.userId ? String(req.params.userId) : '';
       
-      // Validation de l'ID MongoDB
       if (!validator.isMongoId(userId)) {
         return res.status(400).json({
           success: false,
@@ -196,7 +169,6 @@ const authController = {
         });
       }
       
-      // Vérifier que l'utilisateur à modifier existe
       const user = await User.findById(userId);
       if (!user) {
         return res.status(404).json({
@@ -205,7 +177,6 @@ const authController = {
         });
       }
       
-      // Promouvoir l'utilisateur
       user.role = 'admin';
       await user.save();
       
@@ -228,12 +199,10 @@ const authController = {
     }
   },
 
-  // Méthode pour rétrograder un administrateur
   demoteToUser: async (req, res) => {
     try {
       const userId = req.params.userId ? String(req.params.userId) : '';
       
-      // Validation de l'ID MongoDB
       if (!validator.isMongoId(userId)) {
         return res.status(400).json({
           success: false,
@@ -271,10 +240,8 @@ const authController = {
     }
   },
 
-  // Liste tous les utilisateurs (pour l'admin)
   getAllUsers: async (req, res) => {
     try {
-      // Projection sécurisée pour exclure les données sensibles
       const users = await User.find({}, { password: 0, __v: 0 }).limit(100);
       
       res.json({
@@ -290,9 +257,7 @@ const authController = {
     }
   },
 
-  // Méthodes de OAuth existantes
   googleAuth: (req, res) => {
-    // Mettre à jour l'URL de redirection pour inclure /api
     const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
     const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
@@ -306,10 +271,8 @@ const authController = {
   googleAuthCallback: async (req, res) => {
     try {
       const code = req.query.code;
-      // Mettre à jour l'URL de redirection pour inclure /api
       const redirectUri = `${process.env.API_URL}/api/auth/google/callback`;
 
-      // Échange le code contre un token
       const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID,
@@ -318,13 +281,11 @@ const authController = {
         grant_type: 'authorization_code'
       });
 
-      // Récupérer les infos utilisateur avec l'access token
       const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${tokenResponse.data.access_token}` }
       });
 
       const userData = userInfoResponse.data;
-      console.log('Google user data:', userData);
 
       let user = await User.findOne({ email: userData.email });
       if (!user) {
@@ -333,7 +294,7 @@ const authController = {
           name: userData.name,
           googleId: userData.sub,
           picture: userData.picture,
-          role: 'user'  // Définir le rôle par défaut
+          role: 'user'
         });
       } else {
         user.picture = userData.picture;
@@ -341,7 +302,6 @@ const authController = {
         await user.save();
       }
 
-      // Générer le JWT avec la photo et le rôle
       const token = jwt.sign(
         { 
           id: user._id,
@@ -354,7 +314,6 @@ const authController = {
         { expiresIn: '24h' }
       );
 
-      // Rediriger vers l'app avec toutes les données
       res.redirect(`gpsapp://auth?token=${token}&user=${encodeURIComponent(JSON.stringify({
         name: user.name,
         email: user.email,
@@ -372,7 +331,6 @@ const authController = {
     try {
       const { email, name, picture } = req.body;
       
-      // Find or create user
       let user = await User.findOne({ email });
       
       if (!user) {
@@ -380,14 +338,14 @@ const authController = {
           email,
           name,
           picture,
-          googleId: email, // Using email as googleId since we don't get it from mobile
-          role: 'user'     // Définir le rôle par défaut
+          googleId: email, 
+          role: 'user'    
         });
       }
 
       const token = jwt.sign(
         { 
-          id: user._id, // Include the MongoDB _id
+          id: user._id, 
           email: user.email,
           name: user.name,
           role: user.role
@@ -400,7 +358,7 @@ const authController = {
         success: true,
         token,
         user: {
-          id: user._id, // Include the MongoDB _id
+          id: user._id, 
           email: user.email,
           name: user.name,
           picture: user.picture,
@@ -415,7 +373,6 @@ const authController = {
 
   authSuccess: (req, res) => {
     try {
-      // Generate JWT token with user info
       const token = jwt.sign(
         { 
           id: req.user._id,
@@ -427,7 +384,6 @@ const authController = {
         { expiresIn: '24h' }
       );
 
-      // Return JSON response instead of redirect
       res.json({ 
         success: true,
         token,
@@ -445,7 +401,6 @@ const authController = {
     }
   },
 
-  // IMPORTANT: Ajouter la méthode manquante qui causait l'erreur
   authFailure: (req, res) => {
     res.status(401).json({ 
       success: false, 
@@ -466,10 +421,8 @@ const authController = {
     });
   },
 
-  // Autres méthodes existantes...
   me: async (req, res) => {
     try {
-      // req.user should be set by your auth middleware
       const user = await User.findById(req.user.id);
       
       if (!user) {
@@ -498,11 +451,9 @@ const authController = {
     }
   },
 
-  // Web-specific OAuth methods...
   googleWebAuth: (req, res) => {
     try {
       const redirectUri = `${process.env.API_URL}/api/auth/google/web/callback`;
-      console.log('Using redirect URI:', redirectUri);
 
       const url = `https://accounts.google.com/o/oauth2/v2/auth?` +
           `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
@@ -512,7 +463,6 @@ const authController = {
           `access_type=offline&` +
           `prompt=consent`;
 
-      console.log('Redirecting to:', url);
       res.redirect(url);
     } catch (error) {
       console.error('Google web auth error:', error);
@@ -528,9 +478,7 @@ const authController = {
       }
 
       const redirectUri = `${process.env.API_URL}/api/auth/google/web/callback`;
-      console.log('Callback received with code:', !!code);
 
-      // Échange le code contre un token
       const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID,
@@ -544,7 +492,6 @@ const authController = {
         throw new Error('No access token received');
       }
 
-      // Récupérer les infos utilisateur
       const userInfoResponse = await axios.get(
         'https://www.googleapis.com/oauth2/v3/userinfo',
         { headers: { Authorization: `Bearer ${access_token}` } }
@@ -556,7 +503,6 @@ const authController = {
         name: userData.name
       });
 
-      // Créer ou mettre à jour l'utilisateur
       let user = await User.findOne({ email: userData.email });
       if (!user) {
         user = await User.create({
@@ -564,7 +510,7 @@ const authController = {
           name: userData.name,
           googleId: userData.sub,
           picture: userData.picture,
-          role: 'user'  // Définir le rôle par défaut
+          role: 'user'
         });
       } else {
         user.picture = userData.picture;
@@ -595,7 +541,6 @@ const authController = {
           role: user.role
         }))}`;
 
-      console.log('Redirecting to frontend:', redirectURL);
       res.redirect(redirectURL);
 
     } catch (error) {

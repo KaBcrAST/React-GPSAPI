@@ -3,14 +3,10 @@ const validator = require('validator');
 const authService = require('../../services/authService');
 
 const infoController = {
-  /**
-   * Récupère les informations de l'utilisateur connecté
-   */
   getProfile: async (req, res) => {
     try {
       const userId = req.user.id;
       
-      // Appel au service d'authentification
       const user = await authService.getUserById(userId);
       
       res.json({
@@ -26,12 +22,8 @@ const infoController = {
     }
   },
   
-  /**
-   * Alternative: Récupérer le profil utilisateur directement depuis le modèle
-   */
   me: async (req, res) => {
     try {
-      // Trouver l'utilisateur avec son ID (depuis le token JWT)
       const user = await User.findById(req.user.id, { password: 0, __v: 0 });
       
       if (!user) {
@@ -61,14 +53,10 @@ const infoController = {
     }
   },
 
-  /**
-   * Mettre à jour l'email
-   */
   updateEmail: async (req, res) => {
     try {
       const { email } = req.body;
       
-      // Validation de base
       if (!email || !validator.isEmail(email)) {
         return res.status(400).json({
           success: false,
@@ -76,7 +64,6 @@ const infoController = {
         });
       }
 
-      // Vérifier si l'email est déjà utilisé par un autre utilisateur
       const existingUser = await User.findOne({ email, _id: { $ne: req.user.id } });
       if (existingUser) {
         return res.status(400).json({
@@ -85,7 +72,6 @@ const infoController = {
         });
       }
 
-      // Mettre à jour l'email
       const user = await User.findByIdAndUpdate(
         req.user.id,
         { email: email.toLowerCase().trim() },
@@ -119,14 +105,10 @@ const infoController = {
     }
   },
 
-  /**
-   * Mettre à jour le nom d'utilisateur
-   */
   updateName: async (req, res) => {
     try {
       const { name } = req.body;
       
-      // Validation du nom
       if (!name || name.trim().length < 2) {
         return res.status(400).json({
           success: false,
@@ -134,7 +116,6 @@ const infoController = {
         });
       }
 
-      // Mettre à jour le nom
       const user = await User.findByIdAndUpdate(
         req.user.id,
         { name: name.trim() },

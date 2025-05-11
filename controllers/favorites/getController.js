@@ -1,10 +1,7 @@
 const FavoriteRoute = require('../../models/FavoriteRoute');
 const validator = require('validator');
 
-/**
- * Récupère un trajet favori par son ID
- * GET /api/favorites/:id
- */
+
 const getFavoriteById = async (req, res) => {
   try {
     const favoriteId = req.params.id;

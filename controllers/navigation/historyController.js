@@ -5,7 +5,6 @@ const historyController = {
     try {
       const { userId, destination } = req.body;
 
-      // Sauvegarder dans l'historique
       if (userId) {
         let history = await History.findOne({ userId });
         if (!history) {

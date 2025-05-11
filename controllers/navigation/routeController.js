@@ -7,7 +7,6 @@ const routeController = {
     const { origin, destination, avoidTolls } = req.query;
 
     try {
-      console.log('🚗 Route request:', { origin, destination, avoidTolls });
       
       const params = {
         origin,
@@ -17,14 +16,12 @@ const routeController = {
         language: 'fr',
         region: 'fr',
         units: 'metric',
-        departure_time: 'now', // Important pour obtenir les infos de trafic en temps réel
+        departure_time: 'now',
         traffic_model: 'best_guess',
         key: process.env.GOOGLE_MAPS_API_KEY
       };
 
-      // Convert string 'true'/'false' to boolean
       if (avoidTolls === 'true') {
-        console.log('🚫 Avoiding tolls for this route');
         params.avoid = 'tolls';
       }
 
@@ -41,16 +38,12 @@ const routeController = {
         });
       }
 
-      // Process routes with enhanced detail
       const routes = response.data.routes.map(route => {
-        // Variables pour calculer les ralentissements
         let totalSlowdowns = 0;
         let slowdownDuration = { value: 0, text: '0 min' };
         let hasTrafficSlowdowns = false;
 
-        // Extract detailed steps from each leg
         const details = route.legs.flatMap(leg => {
-          // Calculer la différence entre la durée avec trafic et sans trafic
           const normalDuration = leg.duration?.value || 0;
           const trafficDuration = leg.duration_in_traffic?.value || normalDuration;
           
@@ -60,7 +53,6 @@ const routeController = {
             slowdownDuration.value += extraTime;
             hasTrafficSlowdowns = true;
             
-            // Formater le texte du ralentissement
             const minutes = Math.round(extraTime / 60);
             slowdownDuration.text = `${minutes} min`;
           }
@@ -71,7 +63,6 @@ const routeController = {
             duration: step.duration,
             instructions: step.html_instructions,
             maneuver: step.maneuver || null,
-            // Ajouter les infos de trafic si disponibles
             traffic_speed_category: step.traffic_speed_category || 'normal',
             has_traffic: !!step.duration_in_traffic
           }));
@@ -85,18 +76,15 @@ const routeController = {
           polyline: route.overview_polyline.points,
           details,
           hasTolls: route.warnings?.some(w => w.toLowerCase().includes('toll')) || false,
-          // Nouvelles informations de trafic
           traffic: {
             hasSlowdowns: hasTrafficSlowdowns,
             slowdownCount: totalSlowdowns,
             slowdownDuration: slowdownDuration,
-            // Si disponible, ajoutez aussi la durée avec trafic
             durationWithTraffic: route.legs[0].duration_in_traffic || route.legs[0].duration
           }
         };
       });
 
-      console.log(`✅ Found ${routes.length} routes with traffic information`);
       
       res.json({ 
         status: 'OK',
@@ -132,14 +120,12 @@ const routeController = {
         mode: 'driving',
         language: 'fr',  
         region: 'fr',
-        departure_time: 'now', // Pour obtenir les infos de trafic
+        departure_time: 'now', 
         traffic_model: 'best_guess',
         key: process.env.GOOGLE_MAPS_API_KEY
       };
 
-      // Ajouter l'option d'évitement des péages si demandé
       if (avoidTolls === 'true') {
-        console.log('🚫 Preview without tolls');
         params.avoid = 'tolls';
       }
 
@@ -152,12 +138,10 @@ const routeController = {
       const routes = response.data.routes.map((route, index) => {
         const leg = route.legs[0];
         
-        // Extraire les coordonnées détaillées de chaque étape pour une meilleure précision
         let detailedCoordinates = [];
         leg.steps.forEach(step => {
           const stepCoords = decodePolyline(step.polyline.points);
           
-          // Éviter les points dupliqués entre les étapes
           if (detailedCoordinates.length > 0 && stepCoords.length > 0 && 
               detailedCoordinates[detailedCoordinates.length - 1].latitude === stepCoords[0].latitude &&
               detailedCoordinates[detailedCoordinates.length - 1].longitude === stepCoords[0].longitude) {
@@ -167,7 +151,6 @@ const routeController = {
           }
         });
         
-        // Calculer les infos de ralentissement
         const normalDuration = leg.duration?.value || 0;
         const trafficDuration = leg.duration_in_traffic?.value || normalDuration;
         const hasTrafficSlowdowns = trafficDuration > normalDuration;
@@ -186,7 +169,6 @@ const routeController = {
           slowdownInfo.duration.text = `${Math.round(extraSeconds / 60)} min`;
         }
         
-        // Extraire également les instructions de navigation pour chaque étape
         const steps = leg.steps.map(step => ({
           distance: step.distance,
           duration: step.duration,
@@ -199,7 +181,7 @@ const routeController = {
 
         return {
           index,
-          coordinates: detailedCoordinates, // Utiliser les coordonnées détaillées au lieu de overview_polyline
+          coordinates: detailedCoordinates,
           distance: leg.distance,
           duration: leg.duration,
           durationWithTraffic: leg.duration_in_traffic || leg.duration,
@@ -207,8 +189,7 @@ const routeController = {
           hasTolls: route.warnings?.some(w => w.toLowerCase().includes('toll')) || false,
           distanceValue: leg.distance.value,
           durationValue: leg.duration.value,
-          steps: steps, // Ajouter les étapes détaillées
-          // Ajouter les infos de ralentissement
+          steps: steps,
           traffic: {
             hasSlowdowns: slowdownInfo.exists,
             slowdownDuration: slowdownInfo.duration
@@ -216,7 +197,6 @@ const routeController = {
         };
       });
 
-      console.log(`✅ Found ${routes.length} preview routes with traffic information`);
       res.json({ routes });
 
     } catch (error) {
@@ -233,14 +213,13 @@ const routeController = {
     }
 
     try {
-      console.log('🚫 Calculating route without tolls');
       
       const params = {
         origin,
         destination,
-        alternatives: false, // Une seule route sans péage
+        alternatives: false, 
         mode: 'driving',
-        avoid: 'tolls', // Toujours éviter les péages
+        avoid: 'tolls', 
         language: 'fr',
         region: 'fr',
         units: 'metric',
@@ -264,7 +243,6 @@ const routeController = {
         summary: 'Route sans péages'
       };
 
-      console.log('✅ Found route without tolls');
       res.json({ status: 'OK', route: formattedRoute });
 
     } catch (error) {

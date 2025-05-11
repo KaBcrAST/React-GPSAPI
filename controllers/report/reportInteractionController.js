@@ -6,21 +6,18 @@ const reportInteractionController = {
     try {
       const { reportId } = req.params;
       
-      // Récupérer le rapport avant mise à jour pour obtenir ses coordonnées
       const report = await Report.findById(reportId);
       
       if (!report) {
         return res.status(404).json({ error: 'Report not found' });
       }
       
-      // Mettre à jour le rapport temporaire
       const updatedReport = await Report.findByIdAndUpdate(
         reportId,
         { $inc: { upvotes: 1 } },
         { new: true }
       );
       
-      // Mettre également à jour le rapport dans ReportAll
       await ReportAll.findOneAndUpdate(
         {
           type: report.type,

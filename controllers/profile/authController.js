@@ -1,7 +1,5 @@
 const authController = {
-  /**
-   * Déconnecte l'utilisateur
-   */
+
   logout: (req, res) => {
     if (req.logout) {
       req.logout();

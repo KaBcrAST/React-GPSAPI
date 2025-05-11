@@ -12,7 +12,6 @@ const reportCreateController = {
         });
       }
 
-      // Vérifier que le type est valide selon l'énumération
       const validTypes = ['ACCIDENT', 'TRAFFIC_JAM', 'ROAD_CLOSED', 'POLICE', 'OBSTACLE'];
       if (!validTypes.includes(type)) {
         return res.status(400).json({
@@ -20,7 +19,6 @@ const reportCreateController = {
         });
       }
 
-      // Créer le rapport temporaire
       const report = new Report({
         type,
         location: {
@@ -31,7 +29,6 @@ const reportCreateController = {
 
       await report.save();
 
-      // Créer ou mettre à jour le rapport dans ReportAll
       await ReportAll.findOneAndUpdate(
         {
           type,
@@ -43,8 +40,8 @@ const reportCreateController = {
             type: 'Point',
             coordinates: [longitude, latitude]
           },
-          $inc: { count: 1 }, // Incrémenter le compteur si le rapport existe déjà
-          $setOnInsert: { createdAt: new Date() } // Définir la date de création uniquement si nouveau
+          $inc: { count: 1 }, 
+          $setOnInsert: { createdAt: new Date() } 
         },
         { upsert: true, new: true }
       );

@@ -73,7 +73,6 @@ const distanceController = {
         duration: response.data.routes[0].legs[0].duration
       };
 
-      console.log('Route info found:', routeInfo);
       res.json(routeInfo);
     } catch (error) {
       console.error('Navigation error:', error.response?.data || error.message);
